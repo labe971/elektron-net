@@ -220,7 +220,7 @@ cd C:\Path\To\elektron-net
 mkdir build
 
 # 3. Configure with the static preset (includes GUI wallet by default)
-cmake -B build --preset vs2026-static
+cmake -B build --preset vs2022-static
 
 # 4. Compile Release binaries
 cmake --build build --config Release -j 4
@@ -230,7 +230,7 @@ ctest --test-dir build --build-config Release -j 4
 ```
 
 > **If you do NOT want the GUI**, replace step 3 with:  
-> `cmake -B build --preset vs2026 -DBUILD_GUI=OFF`
+> `cmake -B build --preset vs2022 -DBUILD_GUI=OFF`
 
 > **If vcpkg fails with "path too long"**, add:  
 > `-DVCPKG_INSTALL_OPTIONS="--x-buildtrees-root=C:\vcpkg"`
@@ -300,7 +300,7 @@ elektron-net/
 
 ### GUI-Build Hinweis
 
-Die Visual-Studio-Presets (`vs2026`, `vs2026-static`) bauen die GUI **automatisch mit** (`BUILD_GUI=ON`).  
+Die Visual-Studio-Presets (`vs2022`, `vs2022-static`) bauen die GUI **automatisch mit** (`BUILD_GUI=ON`).  
 Für MSYS2 oder manuelle CMake-Aufrufe musst du die GUI explizit einschalten:
 
 ```bash
@@ -314,7 +314,7 @@ cmake -G "MinGW Makefiles" .. -DBUILD_GUI=ON
 | OS | Create build dir | Configure | Compile |
 |----|-------------------|-----------|---------|
 | Linux/macOS | `mkdir build && cd build` | `cmake ..` | `cmake --build . -j$(nproc)` |
-| Windows (MSVC) | `mkdir build` | `cmake -B build --preset vs2026-static` | `cmake --build build --config Release` |
+| Windows (MSVC) | `mkdir build` | `cmake -B build --preset vs2022-static` | `cmake --build build --config Release` |
 | Windows (MSYS2) | `mkdir build && cd build` | `cmake -G "MinGW Makefiles" ..` | `cmake --build .` |
 
 ---
