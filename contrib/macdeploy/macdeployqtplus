@@ -416,7 +416,7 @@ if os.path.exists("dist"):
 
 # ------------------------------------------------
 
-target = os.path.join("dist", "Bitcoin-Qt.app")
+target = os.path.join("dist", "Elektron-Qt.app")
 
 print("+ Copying source bundle +")
 if verbose:
@@ -499,7 +499,7 @@ if config.zip is not None:
         print("+ Removing existing .zip +")
         os.unlink(name + ".zip")
 
-    subprocess.check_call(["zip", "-ry", os.path.abspath(name + ".zip"), 'Bitcoin-Qt.app'], cwd='dist')
+    subprocess.check_call(["zip", "-ry", os.path.abspath(name + ".zip"), 'Elektron-Qt.app'], cwd='dist')
 
 # ------------------------------------------------
 
