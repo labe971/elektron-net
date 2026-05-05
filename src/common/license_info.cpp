@@ -20,12 +20,16 @@ std::string CopyrightHolders(const std::string& strPrefix)
     if (copyright_devs.find("Bitcoin Core") == std::string::npos) {
         strCopyrightHolders += "\n" + strPrefix + "The Bitcoin Core developers";
     }
+    // Add Elektron Net copyright
+    if (copyright_devs.find("Elektron Net") == std::string::npos) {
+        strCopyrightHolders += "\n" + strPrefix + "The Elektron Net developers";
+    }
     return strCopyrightHolders;
 }
 
 std::string LicenseInfo()
 {
-    const std::string URL_SOURCE_CODE = "<https://github.com/bitcoin/bitcoin>";
+    const std::string URL_SOURCE_CODE = "<https://github.com/kutlusoy/elektron-net>";
 
     return CopyrightHolders(strprintf(_("Copyright (C) %i-%i"), 2009, COPYRIGHT_YEAR).translated + " ") + "\n" +
            "\n" +

@@ -278,7 +278,7 @@ static RPCMethod generatetoaddress()
          RPCExamples{
             "\nGenerate 11 blocks to myaddress\n"
             + HelpExampleCli("generatetoaddress", "11 \"myaddress\"")
-            + "If you are using the " CLIENT_NAME " wallet, you can get a new address to send the newly generated bitcoin to with:\n"
+            + "If you are using the " CLIENT_NAME " wallet, you can get a new address to send the newly generated elek to with:\n"
             + HelpExampleCli("getnewaddress", "")
                 },
         [](const RPCMethod& self, const JSONRPCRequest& request) -> UniValue
