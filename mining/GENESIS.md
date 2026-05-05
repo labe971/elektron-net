@@ -182,3 +182,4 @@ To import into the Elektron Net wallet later:
 - After 2,016 blocks (~1.4 days), the difficulty retargets automatically to maintain the 60-second block time.
 - **Testnet4** uses a different genesis message and a zero-pubkey output, consistent with Bitcoin Testnet4's design.
 - **Regtest** does not need mining; its genesis block uses the minimum difficulty `0x207fffff` and is solved instantly.
+- **Distinct genesis hashes:** Mainnet, Testnet3, Testnet4 and Signet each receive a different block timestamp, offset by 137 seconds between networks. This guarantees every chain has a unique genesis hash so nodes can never accidentally peer with the wrong network.

@@ -469,43 +469,51 @@ if __name__ == "__main__":
     print(f"\nMining with nBits=0x{n_bits:08x} (target ~10x easier than Bitcoin)")
     print(f"Reward = 5 Elek = 500,000,000 Lepton")
 
-    # Mine mainnet (same tx as testnet3/signet)
+    # Each network MUST have a distinct genesis hash so peers can tell chains apart.
+    # We achieve this by giving each network a different timestamp, offset by 137 s
+    # (a nod to the 137-day pruning window).
+    mainnet_time = current_time
+    testnet3_time = current_time + 137
+    testnet4_time = current_time + 274
+    signet_time = current_time + 411
+
+    # Mine mainnet (same tx as testnet3/signet, but different timestamp)
     mainnet_nonce, mainnet_hash, mainnet_merkle = mine_genesis(
-        "Mainnet", current_time, n_bits, build_tx_mainnet)
+        "Mainnet", mainnet_time, n_bits, build_tx_mainnet)
 
-    # Mine testnet3 (same tx as mainnet)
+    # Mine testnet3 (same tx as mainnet, but different timestamp)
     testnet3_nonce, testnet3_hash, testnet3_merkle = mine_genesis(
-        "Testnet3", current_time, n_bits, build_tx_mainnet)
+        "Testnet3", testnet3_time, n_bits, build_tx_mainnet)
 
-    # Mine testnet4
+    # Mine testnet4 (different tx AND different timestamp)
     testnet4_nonce, testnet4_hash, testnet4_merkle = mine_genesis(
-        "Testnet4", current_time, n_bits, build_tx_testnet4)
+        "Testnet4", testnet4_time, n_bits, build_tx_testnet4)
 
-    # Mine signet (same tx as mainnet)
+    # Mine signet (same tx as mainnet, but different timestamp)
     signet_nonce, signet_hash, signet_merkle = mine_genesis(
-        "Signet", current_time, n_bits, build_tx_mainnet)
+        "Signet", signet_time, n_bits, build_tx_mainnet)
 
     results = {
         "mainnet": {
-            "time": current_time,
+            "time": mainnet_time,
             "nonce": mainnet_nonce,
             "hash": mainnet_hash,
             "merkle": mainnet_merkle,
         },
         "testnet3": {
-            "time": current_time,
+            "time": testnet3_time,
             "nonce": testnet3_nonce,
             "hash": testnet3_hash,
             "merkle": testnet3_merkle,
         },
         "testnet4": {
-            "time": current_time,
+            "time": testnet4_time,
             "nonce": testnet4_nonce,
             "hash": testnet4_hash,
             "merkle": testnet4_merkle,
         },
         "signet": {
-            "time": current_time,
+            "time": signet_time,
             "nonce": signet_nonce,
             "hash": signet_hash,
             "merkle": signet_merkle,

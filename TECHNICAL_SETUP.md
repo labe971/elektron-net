@@ -77,9 +77,9 @@ GENESIS_PUBKEY_HEX = (
 
 ### What is being mined?
 
-For each network (Mainnet, Testnet3, Testnet4, Signet) a different genesis block must be created because:
-- The genesis transaction contains a timestamp message unique to the network.
-- Testnet4 uses a zero-pubkey output (no reward).
+For each network (Mainnet, Testnet3, Testnet4, Signet) a **different genesis block hash** must be created so nodes can tell chains apart:
+- Each network gets a **different block timestamp**, offset by 137 seconds (a nod to the 137-day pruning window).
+- Testnet4 additionally uses a different genesis message and a zero-pubkey output (no reward).
 - The block timestamp and nonce must satisfy `hash <= target`.
 
 ### Difficulty parameters
