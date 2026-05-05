@@ -29,19 +29,19 @@ Key properties:
 - **5 Elek** genesis block reward, scaled proportionally to the 60s interval
 - **Bech32m addresses** — standard P2WPKH / P2TR (`be1q...` / `be1p...` prefix)
 - **137-day pruning** — cryptographic forgetting, structural privacy by design
-- **P2P port 9336**, network magic `ELEK` (0x454C454B)
+- **P2P port 6033** (RPC 6032)
 
 ### Genesis Block
 
-```
-Hash:        0e0033ee45b67f54c617399f01c23b3afe14e6b0de6d63ef3daf91bb15edb6d6
-MerkleRoot:  37dac1cc7688adda10829bf4e35ff7ca8433124554b93837cc8a89267a40f6f1
-Time:        1744156800  (2026-04-09 00:00:00 UTC)
-Bits:        0x207fffff
-Nonce:       0
-Message:     "Elektron Net 09/Apr/2026 From the Lydian Elektron to the Digital Elek
-              - Value Through Mathematics"
-```
+The genesis block is mined once before mainnet launch using `mining/mine_genesis.py`.
+Parameters are set to `nBits = 0x1d7fffff` (~200× easier than Bitcoin, CPU-friendly)
+and the genesis message is:
+
+> *"Mathematics secures your money. Time erases your traces. You own the moment."*
+
+After mining, the resulting `hash`, `merkle root`, `time`, and `nonce` are pasted
+into `src/kernel/chainparams.cpp` (the `assert` lines). Until then those values
+are placeholders.
 
 License
 -------
@@ -91,19 +91,14 @@ for details.
 Peer Discovery
 --------------
 
-On first start, Elektron Net queries DNS seeds:
-- `dnsseed.elektron-net.org`
-- `seed1.elektron-net.org` ... `seed4.elektron-net.org`
+On first start, Elektron Net queries the DNS seed:
+- `seed.elektron-net.org`
 
-A bootstrap endpoint is also available at:
-`https://bootstrap.elektron-net.org/bootstrap.json`
-
-See [contrib/seeds/bootstrap.php](contrib/seeds/bootstrap.php) to self-host a
-seed server.
+See [mining/README.md](mining/README.md) for mining and seed setup.
 
 Documentation
 -------------
 
-Full protocol documentation is in [Whitepaper_2.md](Whitepaper_2.md).
-Implementation workflow reference is in [WORKFLOW.md](WORKFLOW.md).
+Protocol design notes are in [WHITEPAPER.md](WHITEPAPER.md).
+Full technical setup (genesis → build → node → mining → DNS seeds) is in [TECHNICAL_SETUP.md](TECHNICAL_SETUP.md).
 Additional technical docs are in [doc/](doc/).
