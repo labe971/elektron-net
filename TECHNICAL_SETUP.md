@@ -36,8 +36,37 @@ This document describes every step from zero to a running Elektron Net network: 
 Build instructions exist for:
 - [doc/build-unix.md](doc/build-unix.md) — Linux, BSD
 - [doc/build-osx.md](doc/build-osx.md) — macOS
-- [doc/build-windows.md](doc/build-windows.md) — Windows (MSYS2)
+- [doc/build-windows.md](doc/build-windows.md) — Windows (MSYS2 / WSL)
 - [doc/build-windows-msvc.md](doc/build-windows-msvc.md) — Windows (Visual Studio)
+
+### Windows — Required Programs & Setup
+
+If you build **natively on Windows**, install the following tools first:
+
+| Tool | Purpose | Download / Install Command |
+|------|---------|---------------------------|
+| **Git for Windows** | Version control | `winget install Git.Git` or [git-scm.com](https://git-scm.com/downloads/win) |
+| **Python 3.11+** | Genesis miner & tests | `winget install Python.Python.3.11` or [python.org](https://python.org) |
+| **CMake 3.20+** | Build system | `winget install Kitware.CMake` or [cmake.org](https://cmake.org/download/) |
+| **Visual Studio 2022** | C++ compiler (MSVC route) | `winget install Microsoft.VisualStudio.2022.Community` |
+| **MSYS2** | POSIX environment (MSYS2 route) | [msys2.org](https://www.msys2.org/) |
+
+> **Important:** After installing Python and CMake, **restart your terminal** (PowerShell / CMD / MSYS2) so the new `PATH` entries are active. Verify with:
+> ```powershell
+> python --version   # should show 3.11+
+> cmake --version    # should show 3.20+
+> git --version
+> ```
+
+#### Windows — Choose your build route
+
+| Route | Best for | Difficulty |
+|-------|----------|------------|
+| **MSVC (Visual Studio)** | Native Windows, GUI build, release binaries | Medium |
+| **MSYS2 (MinGW)** | Open-source toolchain, closer to Linux workflow | Medium |
+| **WSL + MinGW cross** | Already using WSL, cross-compile for Windows | Advanced |
+
+> **Note:** There is **no pre-existing `build` folder** in the repository. You must create it yourself during the build step (see Section 5).
 
 ---
 
@@ -162,36 +191,131 @@ Save the file.
 
 ## 5. Building the Node
 
+> **There is no `build/` folder in the repository.**  
+> You create it during your first CMake run. This keeps the source tree clean and lets you have multiple build directories (e.g. `build-debug`, `build-release`).
+
 ### Linux / macOS
 
 ```bash
+# Create the build directory (only once)
+mkdir build
+
+# Generate build files
 cd build
 cmake ..
+
+# Compile using all CPU cores
 cmake --build . -j$(nproc)
 ```
 
-### Windows (MSYS2)
+### Windows — Visual Studio (Recommended for most users)
+
+Open **"Developer PowerShell for VS 2022"** (installed with Visual Studio) and run:
+
+```powershell
+# 1. Navigate into the repository
+cd C:\Path\To\elektron-net
+
+# 2. Create the build directory (only once)
+mkdir build
+
+# 3. Configure with the static preset (includes GUI wallet by default)
+cmake -B build --preset vs2026-static
+
+# 4. Compile Release binaries
+cmake --build build --config Release -j 4
+
+# 5. (Optional) Run tests
+ctest --test-dir build --build-config Release -j 4
+```
+
+> **If you do NOT want the GUI**, replace step 3 with:  
+> `cmake -B build --preset vs2026 -DBUILD_GUI=OFF`
+
+> **If vcpkg fails with "path too long"**, add:  
+> `-DVCPKG_INSTALL_OPTIONS="--x-buildtrees-root=C:\vcpkg"`
+
+#### Visual Studio — Where are my executables?
+
+After a successful build, binaries are inside the build tree:
+
+```
+elektron-net/
+  build/
+    src/
+      Release/
+        elektrond.exe
+        elektron-cli.exe
+        elektron-tx.exe
+        elektron-wallet.exe
+      elektron-qt/
+        Release/
+          elektron-qt.exe
+```
+
+You can copy them out or install them system-wide:
+
+```powershell
+cmake --install build --config Release --prefix C:\ElektronNet
+```
+
+### Windows — MSYS2 (MinGW)
+
+Open the **MSYS2 UCRT64** terminal and install the toolchain first:
 
 ```bash
+# 1. Install required packages (one-time setup)
+pacman -S mingw-w64-ucrt-x86_64-gcc \
+          mingw-w64-ucrt-x86_64-cmake \
+          mingw-w64-ucrt-x86_64-python \
+          mingw-w64-ucrt-x86_64-boost \
+          mingw-w64-ucrt-x86_64-libevent \
+          mingw-w64-ucrt-x86_64-zeromq \
+          mingw-w64-ucrt-x86_64-qt6-base \
+          git make
+
+# 2. Navigate to the repo
+cd /c/Path/To/elektron-net
+
+# 3. Create build directory and compile
+mkdir build
 cd build
 cmake -G "MinGW Makefiles" ..
 cmake --build . -j$(nproc)
 ```
 
-### Windows (Visual Studio)
+#### MSYS2 — Where are my executables?
 
-```bash
-cd build
-cmake -G "Visual Studio 17 2022" -A x64 ..
-cmake --build . --config Release
+```
+elektron-net/
+  build/
+    src/
+      elektrond.exe
+      elektron-cli.exe
+      elektron-tx.exe
+      elektron-wallet.exe
+      qt/
+        elektron-qt.exe
 ```
 
-Binaries will appear in `build/src/`:
-- `elektrond` — daemon
-- `elektron-cli` — RPC client
-- `elektron-tx` — transaction utility
-- `elektron-wallet` — wallet tool
-- `elektron-qt` — GUI (if Qt was found)
+### GUI-Build Hinweis
+
+Die Visual-Studio-Presets (`vs2026`, `vs2026-static`) bauen die GUI **automatisch mit** (`BUILD_GUI=ON`).  
+Für MSYS2 oder manuelle CMake-Aufrufe musst du die GUI explizit einschalten:
+
+```bash
+cmake -G "MinGW Makefiles" .. -DBUILD_GUI=ON
+```
+
+> **Achtung:** Im aktuellen Fork heißt die GUI-Executable noch `bitcoin-qt.exe` (oder `bitcoin-gui.exe` bei IPC-Build). Eine vollständige Umbenennung auf `elektron-qt.exe` erfordert zusätzliche CMake-Anpassungen in `src/qt/CMakeLists.txt`.
+
+### Build directory quick reference
+
+| OS | Create build dir | Configure | Compile |
+|----|-------------------|-----------|---------|
+| Linux/macOS | `mkdir build && cd build` | `cmake ..` | `cmake --build . -j$(nproc)` |
+| Windows (MSVC) | `mkdir build` | `cmake -B build --preset vs2026-static` | `cmake --build build --config Release` |
+| Windows (MSYS2) | `mkdir build && cd build` | `cmake -G "MinGW Makefiles" ..` | `cmake --build .` |
 
 ---
 
@@ -280,11 +404,22 @@ The source code already references `seed.elektron-net.org.` in `src/kernel/chain
 
 ### Create a data directory and config
 
+**Linux / macOS:**
 ```bash
 mkdir -p ~/.elektron
 ```
+Create `~/.elektron/elektron.conf`
 
-Create `~/.elektron/elektron.conf`:
+**Windows:**
+```powershell
+# PowerShell
+$datadir = "$env:APPDATA\Elektron"
+New-Item -ItemType Directory -Force -Path $datadir
+```
+Create `%APPDATA%\Elektron\elektron.conf`  
+(You can open the folder quickly with: `explorer %APPDATA%\Elektron`)
+
+#### Example `elektron.conf`
 
 ```ini
 # RPC settings
@@ -306,8 +441,19 @@ prune=1
 
 ### Start the daemon
 
+**Linux / macOS:**
 ```bash
 ./src/elektrond -datadir=$HOME/.elektron -printtoconsole
+```
+
+**Windows (PowerShell — from inside the `build` directory):**
+```powershell
+.\src\Release\elektrond.exe -datadir="$env:APPDATA\Elektron" -printtoconsole
+```
+
+**Windows (MSYS2 — from inside the `build` directory):**
+```bash
+./src/elektrond.exe -datadir=$APPDATA/Elektron -printtoconsole
 ```
 
 You should see:
@@ -319,8 +465,19 @@ If you see `assert(hashGenesisBlock)` failure, the genesis hash in `chainparams.
 
 ### Verify the node is running
 
+**Linux / macOS:**
 ```bash
 ./src/elektron-cli -datadir=$HOME/.elektron getblockchaininfo
+```
+
+**Windows (PowerShell):**
+```powershell
+.\src\Release\elektron-cli.exe -datadir="$env:APPDATA\Elektron" getblockchaininfo
+```
+
+**Windows (MSYS2):**
+```bash
+./src/elektron-cli.exe -datadir=$APPDATA/Elektron getblockchaininfo
 ```
 
 Expected output: `blocks: 0`, `chain: main`, `difficulty: ...`
