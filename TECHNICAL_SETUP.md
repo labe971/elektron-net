@@ -39,34 +39,18 @@ Build instructions exist for:
 - [doc/build-windows.md](doc/build-windows.md) — Windows (MSYS2 / WSL)
 - [doc/build-windows-msvc.md](doc/build-windows-msvc.md) — Windows (Visual Studio)
 
-### Windows — Required Programs & Setup
+### Windows — Build Setup
 
-If you build **natively on Windows**, install the following tools first:
-
-| Tool | Purpose | Download / Install Command |
-|------|---------|---------------------------|
-| **Git for Windows** | Version control | `winget install Git.Git` or [git-scm.com](https://git-scm.com/downloads/win) |
-| **Python 3.11+** | Genesis miner & tests | `winget install Python.Python.3.11` or [python.org](https://python.org) |
-| **CMake 3.20+** | Build system | `winget install Kitware.CMake` or [cmake.org](https://cmake.org/download/) |
-| **Visual Studio 2022** | C++ compiler (MSVC route) | `winget install Microsoft.VisualStudio.2022.Community` |
-| **MSYS2** | POSIX environment (MSYS2 route) | [msys2.org](https://www.msys2.org/) |
-
-> **Important:** After installing Python and CMake, **restart your terminal** (PowerShell / CMD / MSYS2) so the new `PATH` entries are active. Verify with:
-> ```powershell
-> python --version   # should show 3.11+
-> cmake --version    # should show 3.20+
-> git --version
-> ```
-
-#### Windows — Choose your build route
-
-| Route | Best for | Difficulty |
-|-------|----------|------------|
-| **MSVC (Visual Studio)** | Native Windows, GUI build, release binaries | Medium |
-| **MSYS2 (MinGW)** | Open-source toolchain, closer to Linux workflow | Medium |
-| **WSL + MinGW cross** | Already using WSL, cross-compile for Windows | Advanced |
+For detailed Windows build instructions (tool installation, Visual Studio 2026 setup, vcpkg configuration), see:
+- [doc/build-windows-msvc.md](doc/build-windows-msvc.md) — MSVC (recommended)
+- [doc/build-windows.md](doc/build-windows.md) — MSYS2 / MinGW
 
 > **Note:** There is **no pre-existing `build` folder** in the repository. You must create it yourself during the build step (see Section 5).
+
+> **vcpkg root:** If using the Visual Studio bundled vcpkg, ensure the environment variable is set:
+> ```powershell
+> $env:VCPKG_ROOT = "C:\Program Files\Microsoft Visual Studio\18\Community\VC\vcpkg"
+> ```
 
 ---
 
@@ -210,7 +194,7 @@ cmake --build . -j$(nproc)
 
 ### Windows — Visual Studio (Recommended for most users)
 
-Open **"Developer PowerShell for VS 2022"** (installed with Visual Studio) and run:
+Open **"Developer PowerShell for VS 2026"** (installed with Visual Studio) and run:
 
 ```powershell
 # 1. Navigate into the repository
@@ -220,7 +204,7 @@ cd C:\Path\To\elektron-net
 mkdir build
 
 # 3. Configure with the static preset (includes GUI wallet by default)
-cmake -B build --preset vs2022-static
+cmake -B build --preset vs2026-static
 
 # 4. Compile Release binaries
 cmake --build build --config Release -j 4
@@ -230,7 +214,7 @@ ctest --test-dir build --build-config Release -j 4
 ```
 
 > **If you do NOT want the GUI**, replace step 3 with:  
-> `cmake -B build --preset vs2022 -DBUILD_GUI=OFF`
+> `cmake -B build --preset vs2026 -DBUILD_GUI=OFF`
 
 > **If vcpkg fails with "path too long"**, add:  
 > `-DVCPKG_INSTALL_OPTIONS="--x-buildtrees-root=C:\vcpkg"`
@@ -300,21 +284,21 @@ elektron-net/
 
 ### GUI-Build Hinweis
 
-Die Visual-Studio-Presets (`vs2022`, `vs2022-static`) bauen die GUI **automatisch mit** (`BUILD_GUI=ON`).  
+Die Visual-Studio-Presets (`vs2026`, `vs2026-static`) bauen die GUI **automatisch mit** (`BUILD_GUI=ON`).  
 Für MSYS2 oder manuelle CMake-Aufrufe musst du die GUI explizit einschalten:
 
 ```bash
 cmake -G "MinGW Makefiles" .. -DBUILD_GUI=ON
 ```
 
-> **Achtung:** Im aktuellen Fork heißt die GUI-Executable noch `bitcoin-qt.exe` (oder `bitcoin-gui.exe` bei IPC-Build). Eine vollständige Umbenennung auf `elektron-qt.exe` erfordert zusätzliche CMake-Anpassungen in `src/qt/CMakeLists.txt`.
+> **Hinweis:** Die GUI-Executable heißt jetzt `elektron-qt.exe` (bzw. `elektron-gui.exe` bei IPC-Build).
 
 ### Build directory quick reference
 
 | OS | Create build dir | Configure | Compile |
 |----|-------------------|-----------|---------|
 | Linux/macOS | `mkdir build && cd build` | `cmake ..` | `cmake --build . -j$(nproc)` |
-| Windows (MSVC) | `mkdir build` | `cmake -B build --preset vs2022-static` | `cmake --build build --config Release` |
+| Windows (MSVC) | `mkdir build` | `cmake -B build --preset vs2026-static` | `cmake --build build --config Release` |
 | Windows (MSYS2) | `mkdir build && cd build` | `cmake -G "MinGW Makefiles" ..` | `cmake --build .` |
 
 ---

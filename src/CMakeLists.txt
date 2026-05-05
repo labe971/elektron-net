@@ -156,25 +156,25 @@ if(ENABLE_WALLET)
   add_subdirectory(wallet)
 
   if(BUILD_WALLET_TOOL)
-    add_executable(bitcoin-wallet
+    add_executable(elektron-wallet
       bitcoin-wallet.cpp
       init/bitcoin-wallet.cpp
       wallet/wallettool.cpp
     )
-    add_windows_resources(bitcoin-wallet bitcoin-wallet-res.rc)
-    add_windows_application_manifest(bitcoin-wallet)
-    target_link_libraries(bitcoin-wallet
+    add_windows_resources(elektron-wallet bitcoin-wallet-res.rc)
+    add_windows_application_manifest(elektron-wallet)
+    target_link_libraries(elektron-wallet
       core_interface
       bitcoin_wallet
       bitcoin_common
       bitcoin_util
     )
-    install_binary_component(bitcoin-wallet HAS_MANPAGE)
+    install_binary_component(elektron-wallet HAS_MANPAGE)
   endif()
 endif()
 
 
-# P2P and RPC server functionality used by `bitcoind` and `bitcoin-qt` executables.
+# P2P and RPC server functionality used by `elektrond` and `elektron-qt` executables.
 add_library(bitcoin_node STATIC EXCLUDE_FROM_ALL
   addrdb.cpp
   addrman.cpp
@@ -298,40 +298,40 @@ endif()
 
 # Bitcoin wrapper executable that can call other executables.
 if(BUILD_BITCOIN_BIN)
-  add_executable(bitcoin bitcoin.cpp)
-  add_windows_resources(bitcoin bitcoin-res.rc)
-  add_windows_application_manifest(bitcoin)
-  target_link_libraries(bitcoin core_interface bitcoin_common bitcoin_util)
-  install_binary_component(bitcoin HAS_MANPAGE)
+  add_executable(elektron bitcoin.cpp)
+  add_windows_resources(elektron bitcoin-res.rc)
+  add_windows_application_manifest(elektron)
+  target_link_libraries(elektron core_interface bitcoin_common bitcoin_util)
+  install_binary_component(elektron HAS_MANPAGE)
 endif()
 
 # Bitcoin Core bitcoind.
 if(BUILD_DAEMON)
-  add_executable(bitcoind
+  add_executable(elektrond
     bitcoind.cpp
     init/bitcoind.cpp
   )
-  add_windows_resources(bitcoind bitcoind-res.rc)
-  add_windows_application_manifest(bitcoind)
-  target_link_libraries(bitcoind
+  add_windows_resources(elektrond bitcoind-res.rc)
+  add_windows_application_manifest(elektrond)
+  target_link_libraries(elektrond
     core_interface
     bitcoin_node
     $<TARGET_NAME_IF_EXISTS:bitcoin_wallet>
   )
-  install_binary_component(bitcoind HAS_MANPAGE)
+  install_binary_component(elektrond HAS_MANPAGE)
 endif()
 if(ENABLE_IPC AND BUILD_DAEMON)
-  add_executable(bitcoin-node
+  add_executable(elektron-node
     bitcoind.cpp
     init/bitcoin-node.cpp
   )
-  target_link_libraries(bitcoin-node
+  target_link_libraries(elektron-node
     core_interface
     bitcoin_node
     bitcoin_ipc
     $<TARGET_NAME_IF_EXISTS:bitcoin_wallet>
   )
-  install_binary_component(bitcoin-node INTERNAL)
+  install_binary_component(elektron-node INTERNAL)
 endif()
 
 
@@ -348,10 +348,10 @@ target_link_libraries(bitcoin_cli
 
 # Bitcoin Core RPC client
 if(BUILD_CLI)
-  add_executable(bitcoin-cli bitcoin-cli.cpp init/basic.cpp)
-  add_windows_resources(bitcoin-cli bitcoin-cli-res.rc)
-  add_windows_application_manifest(bitcoin-cli)
-  target_link_libraries(bitcoin-cli
+  add_executable(elektron-cli bitcoin-cli.cpp init/basic.cpp)
+  add_windows_resources(elektron-cli bitcoin-cli-res.rc)
+  add_windows_application_manifest(elektron-cli)
+  target_link_libraries(elektron-cli
     core_interface
     bitcoin_cli
     bitcoin_common
@@ -360,34 +360,34 @@ if(BUILD_CLI)
     libevent::core
     libevent::extra
   )
-  install_binary_component(bitcoin-cli HAS_MANPAGE)
+  install_binary_component(elektron-cli HAS_MANPAGE)
 endif()
 
 
 if(BUILD_TX)
-  add_executable(bitcoin-tx bitcoin-tx.cpp)
-  add_windows_resources(bitcoin-tx bitcoin-tx-res.rc)
-  add_windows_application_manifest(bitcoin-tx)
-  target_link_libraries(bitcoin-tx
+  add_executable(elektron-tx bitcoin-tx.cpp)
+  add_windows_resources(elektron-tx bitcoin-tx-res.rc)
+  add_windows_application_manifest(elektron-tx)
+  target_link_libraries(elektron-tx
     core_interface
     bitcoin_common
     bitcoin_util
     univalue
   )
-  install_binary_component(bitcoin-tx HAS_MANPAGE)
+  install_binary_component(elektron-tx HAS_MANPAGE)
 endif()
 
 
 if(BUILD_UTIL)
-  add_executable(bitcoin-util bitcoin-util.cpp)
-  add_windows_resources(bitcoin-util bitcoin-util-res.rc)
-  add_windows_application_manifest(bitcoin-util)
-  target_link_libraries(bitcoin-util
+  add_executable(elektron-util bitcoin-util.cpp)
+  add_windows_resources(elektron-util bitcoin-util-res.rc)
+  add_windows_application_manifest(elektron-util)
+  target_link_libraries(elektron-util
     core_interface
     bitcoin_common
     bitcoin_util
   )
-  install_binary_component(bitcoin-util HAS_MANPAGE)
+  install_binary_component(elektron-util HAS_MANPAGE)
 endif()
 
 
@@ -402,16 +402,16 @@ if(BUILD_KERNEL_LIB)
     add_subdirectory(test/kernel)
   endif()
   if(BUILD_UTIL_CHAINSTATE)
-    add_executable(bitcoin-chainstate
+    add_executable(elektron-chainstate
       bitcoin-chainstate.cpp
     )
-    add_windows_application_manifest(bitcoin-chainstate)
-    target_link_libraries(bitcoin-chainstate
+    add_windows_application_manifest(elektron-chainstate)
+    target_link_libraries(elektron-chainstate
       PRIVATE
         core_interface
         bitcoinkernel
     )
-    install_binary_component(bitcoin-chainstate INTERNAL)
+    install_binary_component(elektron-chainstate INTERNAL)
   endif()
 endif()
 
