@@ -313,7 +313,9 @@ def mine_genesis(name, timestamp, n_bits, tx_builder, reward=500_000_000):
 # Results file writer
 # =============================================================================
 
-def write_results(filename, data, priv_hex, wif, p2pkh, p2wpkh):
+def write_results(filename, data, priv_hex, wif, p2pkh, p2wpkh, n_bits):
+    if priv_hex is None:
+        priv_hex = "<not shown in no-wallet mode>"
     with open(filename, "w") as f:
         f.write(
 """# =============================================================================
@@ -367,13 +369,13 @@ To spend it you must build a raw transaction where the scriptSig is exactly
 # =============================================================================
 
 --- Mainnet (around line 122) ---
-    genesis = CreateGenesisBlock({main_time}, {main_nonce}, 0x1d0a0000, 1, 5 * COIN);
+    genesis = CreateGenesisBlock({main_time}, {main_nonce}, 0x{n_bits:08x}, 1, 5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
     assert(consensus.hashGenesisBlock == uint256{{"{main_hash}"}});
     assert(genesis.hashMerkleRoot == uint256{{"{main_merkle}"}});
 
 --- Testnet3 (around line 238) ---
-    genesis = CreateGenesisBlock({test3_time}, {test3_nonce}, 0x1d0a0000, 1, 5 * COIN);
+    genesis = CreateGenesisBlock({test3_time}, {test3_nonce}, 0x{n_bits:08x}, 1, 5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
     assert(consensus.hashGenesisBlock == uint256{{"{test3_hash}"}});
     assert(genesis.hashMerkleRoot == uint256{{"{test3_merkle}"}});
@@ -383,7 +385,7 @@ To spend it you must build a raw transaction where the scriptSig is exactly
             testnet4_genesis_script,
             {test4_time},
             {test4_nonce},
-            0x1d0a0000,
+            0x{n_bits:08x},
             1,
             5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
@@ -391,7 +393,7 @@ To spend it you must build a raw transaction where the scriptSig is exactly
     assert(genesis.hashMerkleRoot == uint256{{"{test4_merkle}"}});
 
 --- Signet (around line 478) ---
-    genesis = CreateGenesisBlock({signet_time}, {signet_nonce}, 0x1d0a0000, 1, 5 * COIN);
+    genesis = CreateGenesisBlock({signet_time}, {signet_nonce}, 0x{n_bits:08x}, 1, 5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
     assert(consensus.hashGenesisBlock == uint256{{"{signet_hash}"}});
     assert(genesis.hashMerkleRoot == uint256{{"{signet_merkle}"}});
@@ -408,6 +410,7 @@ To spend it you must build a raw transaction where the scriptSig is exactly
                 pub_hex=GENESIS_PUBKEY_HEX,
                 p2pkh=p2pkh,
                 p2wpkh=p2wpkh,
+                n_bits=n_bits,
                 main_time=data["mainnet"]["time"],
                 main_nonce=data["mainnet"]["nonce"],
                 main_hash=data["mainnet"]["hash"],
@@ -437,36 +440,46 @@ if __name__ == "__main__":
     n_bits = 0x1d7fffff
     current_time = int(time.time())
 
-    # Interactive private key input
+    # Optional private key input (for wallet output)
     print("=" * 70)
     print("ELEKTRON NET GENESIS MINER")
     print("=" * 70)
-    print("\nPlease enter the genesis private key (64 hex characters).")
-    print("This key controls the 5 Elek genesis reward.")
-    priv_input = input("Private key (hex): ").strip().lower()
-    if len(priv_input) != 64:
-        print("Error: Private key must be exactly 64 hex characters.")
-        sys.exit(1)
-    try:
-        bytes.fromhex(priv_input)
-    except ValueError:
-        print("Error: Invalid hex string.")
-        sys.exit(1)
 
-    # Verify private key matches the hardcoded public key
-    derived_pub = pubkey_from_priv(priv_input)
-    if derived_pub.hex() != GENESIS_PUBKEY_HEX:
-        print("Error: Derived public key does not match the hardcoded genesis pubkey.")
-        print("Make sure you entered the correct private key.")
-        sys.exit(1)
-    print("Private key verified successfully.")
+    priv_input = None
+    wif = p2pkh = p2wpkh = "N/A (no-wallet mode)"
 
-    # Derive wallet addresses
-    wif, p2pkh, p2wpkh = compute_addresses(priv_input)
+    if "--no-wallet" in sys.argv:
+        print("\nRunning in no-wallet mode (genesis hashes only).")
+        print("Use without --no-wallet and provide your private key to generate wallet output.")
+    else:
+        print("\nPlease enter the genesis private key (64 hex characters).")
+        print("This key controls the 5 Elek genesis reward.")
+        print("Or run with --no-wallet to skip wallet generation.")
+        priv_input = input("Private key (hex): ").strip().lower()
+        if len(priv_input) != 64:
+            print("Error: Private key must be exactly 64 hex characters.")
+            sys.exit(1)
+        try:
+            bytes.fromhex(priv_input)
+        except ValueError:
+            print("Error: Invalid hex string.")
+            sys.exit(1)
 
-    print(f"\nGenesis pubkey: {GENESIS_PUBKEY_HEX[:20]}...{GENESIS_PUBKEY_HEX[-20:]}")
-    print(f"P2WPKH address: {p2wpkh}")
-    print(f"\nMining with nBits=0x{n_bits:08x} (target ~10x easier than Bitcoin)")
+        # Verify private key matches the hardcoded public key
+        derived_pub = pubkey_from_priv(priv_input)
+        if derived_pub.hex() != GENESIS_PUBKEY_HEX:
+            print("Error: Derived public key does not match the hardcoded genesis pubkey.")
+            print("Make sure you entered the correct private key.")
+            sys.exit(1)
+        print("Private key verified successfully.")
+
+        # Derive wallet addresses
+        wif, p2pkh, p2wpkh = compute_addresses(priv_input)
+
+        print(f"\nGenesis pubkey: {GENESIS_PUBKEY_HEX[:20]}...{GENESIS_PUBKEY_HEX[-20:]}")
+        print(f"P2WPKH address: {p2wpkh}")
+
+    print(f"\nMining with nBits=0x{n_bits:08x}")
     print(f"Reward = 5 Elek = 500,000,000 Lepton")
 
     # Each network MUST have a distinct genesis hash so peers can tell chains apart.
@@ -528,7 +541,7 @@ if __name__ == "__main__":
     print(f"Testnet4:  time={current_time} nonce={testnet4_nonce} hash={testnet4_hash} merkle={testnet4_merkle}")
     print(f"Signet:    time={current_time} nonce={signet_nonce} hash={signet_hash} merkle={signet_merkle}")
 
-    write_results("genesis_results.txt", results, priv_input, wif, p2pkh, p2wpkh)
+    write_results("genesis_results.txt", results, priv_input, wif, p2pkh, p2wpkh, n_bits)
 
     print("\n" + "=" * 70)
     print("NEXT STEPS")
