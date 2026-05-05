@@ -16,47 +16,71 @@ Everything else remains Bitcoin Core. The SHA-256d proof-of-work, the 21-million
 
 ## 1 — Why
 
+### The Lydian Elektron
+
+Around 600 BC, the Lydians in Asia Minor struck the first coins in the world. They were made of Elektron – a naturally occurring alloy of gold and silver. These coins fundamentally changed civilisation: for the first time, a person could trade without giving their name. Value became transferable, divisible, anonymous.
+
+The Lydian Elektron coins were the first decentralised currency in history. No king had to be present. No scribe had to record the exchange. The value lay in the material itself – in the mathematics of the alloy.
+
+2,600 years later, the world faces the same problem, solved with the same means: mathematics instead of trust.
+
 ### 1.0 Philosophy & Stoic Stance
 
-The Stoic masters — Seneca, Epictetus, Marcus Aurelius — taught a simple discipline: *distinguish between what is in your power and what is not*. Your thoughts, your keys, your next action: these are yours. The opinions of others, the records of the past, the judgment of history: these are not.
+The Stoic masters — Seneca, Epictetus, Marcus Aurelius — taught a single, devastating discipline: *distinguish between what is in your power and what is not*.
 
-Bitcoin’s ledger is a monument to the past. Every transaction, every mistake, every payment is etched in stone forever. That immutability is powerful, but it is also a chain. A chain that grows heavier with every block. A chain that binds you to a history you cannot change.
+Your thoughts. Your keys. Your next breath. These are yours.
 
-Elektron Net rejects that chain. We do not deny history; we simply refuse to be its prisoner. The network remembers only what is necessary for consensus — the UTXO set, the headers, the checkpoints. The rest is released. Not hidden. Not encrypted. Erased.
+The opinions of strangers. The records of yesterday. The judgment of history. These are not.
+
+Bitcoin’s ledger is a monument to the past. Every transaction, every mistake, every late-night payment is etched in cryptographic stone — forever. That immutability is magnificent, but it is also a chain. A chain that grows heavier with every block. A chain that binds you to a history you never chose to carry.
+
+Elektron Net rejects that chain. We do not deny history; we simply refuse to be its prisoner. The network remembers only what is necessary for consensus — the UTXO set, the headers, the checkpoints. The rest is released. Not hidden behind encryption. Not buried in fine print. Erased. Gone. As if it never was.
 
 This is the **Stoic protocol**: secure what you can control, let go of what you cannot.
 
 > *"You cannot stop the wind, but you can adjust your sails. You cannot erase the world’s memory, but you can build a network that forgets by design."*
 
-### 1.1 History & The Problem
+### 1.1 The Pocket Philosophy
 
-Bitcoin was born in 2009 as a response to institutional failure — a way to move value without trusted intermediaries. Its invention of the blockchain created an eternal, auditable record. In the early years, this was a revolutionary guarantee.
+Elektron Net is deliberately built around a simple, ancient human experience: When you put on your pants in the morning and reach into your pocket, you immediately know three things:
 
-But permanence has a shadow. As the chain grew, so did the surveillance surface. Chain-analysis firms, state actors, and data brokers learned to exploit the very transparency that made Bitcoin trustworthy. What began as liberation from banks became, for many, a transparent cage.
+- How much money you have right now — not last week, not last month.
+- That this money is yours — because it is your pocket.
+- You do not need to remember where each coin came from, what you bought yesterday, or who paid you last year. The past is irrelevant. Only the present matters.
 
-The European Union recognized this tension when it codified the **Right to be Forgotten** in the GDPR. Other jurisdictions followed. Yet on a public blockchain, legal rights are meaningless without technical enforcement. A court can order a search engine to delist a link; no court can order a distributed ledger to delete a block that a million nodes still store.
+This everyday reality is the guiding metaphor for the entire protocol.
 
-Elektron Net solves this at the root. The 137-day pruning window is not a convenience setting. It is a structural guarantee that the network *cannot* retain what it has been ordered to forget — because the protocol itself mandates deletion.
+Your UTXO set is your pocket. It contains exactly what you possess in this moment. Nothing more, nothing less. It is the only permanent data structure in the network.
 
-An immutable global ledger of all financial history creates:
+137 days of pruning is natural forgetting. Just as you do not keep receipts from five months ago in your pocket, the network mathematically erases all transaction history after exactly 137 days (α⁻¹). Not because someone ordered it, but because the protocol makes it impossible to keep. No subpoenas, no archives, no eternal digital footprint.
 
-- **Permanent surveillance surface** — every payment is traceable forever.
-- **Unbounded storage growth** — nodes must carry the full weight of decades of data.
-- **Institutional risk** — data that exists can be subpoenaed, analysed, and weaponised.
-
-Bitcoin was built for institutional resilience. Elektron Net 2.0 is built for human privacy — and for the sovereign right of every user to be forgotten.
-
-### 1.2 The Pocket Philosophy
-
-When you reach into your pocket, you know three things: how much you have right now, that it is yours, and that you do not need receipts from six months ago to prove it.
-
-- **Your UTXO set is your pocket.** It is the only permanent data structure.
-- **137 days is natural forgetting.** The network deletes all transaction history after exactly 137 days (α⁻¹). Not by policy — by protocol. No archive. No subpoena. No eternal footprint.
 - **Recovery is finding your pocket again.** Your 24-word seed is enough. Scan the current UTXO set, recognise what belongs to you, and reclaim it — no history required.
 
 This is not merely privacy engineering. It is the **exercise of the worldwide right to be forgotten, by design**. No administrator can override it. No majority vote can extend it. The will of the user is encoded in consensus: after 137 days, the data is gone. Not because a company decided to comply, but because mathematics and physics demand it.
 
 > *"Mathematics secures your money. Time erases your traces. You own the moment."*
+
+### 1.2 History & The Problem
+
+In 2009, Bitcoin emerged from the wreckage of institutional failure — a way to move value across the world without asking permission, without signing papers, without trusting a bank. Its invention of the blockchain created something unprecedented: an eternal, auditable, uncensorable record. In those early years, that permanence felt like liberation.
+
+But permanence has a shadow.
+
+As the chain grew, so did the surveillance surface. Chain-analysis firms mapped every wallet. State actors traced every flow. Data brokers packaged your financial life into sellable profiles. The very transparency that made Bitcoin trustworthy became the cage that made its users transparent. What began as liberation from banks quietly became, for millions, a panopticon they could never leave.
+
+The European Union recognized this tension and codified the **Right to be Forgotten** in the GDPR. Other jurisdictions followed. Yet on a public blockchain, legal rights are paper tigers without technical enforcement. A court can order a search engine to delist a link; no court on Earth can order a million distributed nodes to forget a block they were designed to keep forever.
+
+Elektron Net solves this at the root.
+
+The 137-day pruning window is not a setting you can toggle. It is a structural guarantee that the network *cannot* retain what it has been ordered to forget — because the protocol itself makes retention impossible. Not difficult. Not illegal. Impossible.
+
+An immutable global ledger of all financial history creates three inevitable catastrophes:
+
+- **Permanent surveillance surface** — every payment you ever made is traceable forever, by anyone with a node and a database.
+- **Unbounded storage growth** — nodes must carry the full weight of decades of data, pricing out ordinary users and centralising power.
+- **Institutional risk** — data that exists can be subpoenaed, analysed, weaponised, and sold. If it is stored, it will be exploited.
+
+Bitcoin was built for institutional resilience. Elektron Net 2.0 is built for human sovereignty — and for the ancient, inalienable right of every person to be forgotten.
 
 ---
 
