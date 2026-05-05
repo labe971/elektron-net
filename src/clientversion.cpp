@@ -1,4 +1,5 @@
 // Copyright (c) 2012-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -19,7 +20,7 @@ using util::Join;
  * for both bitcoind and bitcoin-qt, to make it harder for attackers to
  * target servers or GUI users specifically.
  */
-const std::string UA_NAME("Satoshi");
+const std::string UA_NAME("Elektron");
 
 
 #include <bitcoin-build-info.h>

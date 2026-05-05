@@ -1,4 +1,5 @@
 // Copyright (c) 2021-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -1159,7 +1160,7 @@ static util::Result<CreatedTransactionResult> CreateTransactionInternal(
     // Do not, ever, assume that it's fine to change the fee rate if the user has explicitly
     // provided one
     if (coin_control.m_feerate && coin_selection_params.m_effective_feerate > *coin_control.m_feerate) {
-        const auto feerate_format = FeeRateFormat::SAT_VB;
+        const auto feerate_format = FeeRateFormat::LEP_VB;
         auto msg{strprintf(_("Fee rate (%s) is lower than the minimum fee rate setting (%s)."),
             coin_control.m_feerate->ToString(feerate_format),
             coin_selection_params.m_effective_feerate.ToString(feerate_format))};

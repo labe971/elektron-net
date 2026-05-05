@@ -138,7 +138,7 @@ The 137-day window enforces the **right to be forgotten** as a protocol invarian
 | **Permanent** | Genesis block header (80 bytes) |
 | | All block headers (80 bytes each, chain integrity) |
 | | UTXO set (current unspent outputs) |
-| | Checkpoints (threshold-signed, one per pruning window) |
+| | Checkpoints (BLS or threshold-signed, one per pruning window) |
 | **137 days, then deleted** | Full transaction content |
 | | Input/output scripts and amounts |
 | **Never stored** | User identity, IP mappings, transaction graphs |

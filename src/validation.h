@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -73,7 +74,9 @@ class SignalInterrupt;
 } // namespace util
 
 /** Block files containing a block-height within MIN_BLOCKS_TO_KEEP of ActiveChain().Tip() will not be pruned. */
-static const unsigned int MIN_BLOCKS_TO_KEEP = 288;
+static const unsigned int MIN_BLOCKS_TO_KEEP = 2880; // ~2 days at 60s block time
+/** Mandatory prune depth: 137 days (197,280 blocks at 60s). */
+static const unsigned int MANDATORY_PRUNE_DEPTH = 197280;
 static const signed int DEFAULT_CHECKBLOCKS = 6;
 static constexpr int DEFAULT_CHECKLEVEL{3};
 // Require that user allocate at least 550 MiB for block & undo files (blk???.dat and rev???.dat)
@@ -146,7 +149,7 @@ struct MempoolAcceptResult {
     const std::list<CTransactionRef> m_replaced_transactions;
     /** Virtual size as used by the mempool, calculated using serialized size and sigops. */
     const std::optional<int64_t> m_vsize;
-    /** Raw base fees in satoshis. */
+    /** Raw base fees in Lepton. */
     const std::optional<CAmount> m_base_fees;
     /** The feerate at which this transaction was considered. This includes any fee delta added
      * using prioritisetransaction (i.e. modified fees). If this transaction was submitted as a

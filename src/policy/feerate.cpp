@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -30,8 +31,8 @@ std::string CFeeRate::ToString(FeeRateFormat fee_rate_format) const
 {
     const CAmount feerate_per_kvb{GetFeePerK()};
     switch (fee_rate_format) {
-    case FeeRateFormat::BTC_KVB: return strprintf("%d.%08d %s/kvB", feerate_per_kvb / COIN, feerate_per_kvb % COIN, CURRENCY_UNIT);
-    case FeeRateFormat::SAT_VB: return strprintf("%d.%03d %s/vB", feerate_per_kvb / 1000, feerate_per_kvb % 1000, CURRENCY_ATOM);
+    case FeeRateFormat::ELEK_KVB: return strprintf("%d.%08d %s/kvB", feerate_per_kvb / COIN, feerate_per_kvb % COIN, CURRENCY_UNIT);
+    case FeeRateFormat::LEP_VB: return strprintf("%d.%03d %s/vB", feerate_per_kvb / 1000, feerate_per_kvb % 1000, CURRENCY_ATOM);
     } // no default case, so the compiler can warn about missing cases
     assert(false);
 }

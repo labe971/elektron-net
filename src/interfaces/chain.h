@@ -1,4 +1,5 @@
 // Copyright (c) 2018-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -95,7 +96,7 @@ using SettingsUpdate = std::function<std::optional<interfaces::SettingsAction>(c
 //! estimate fees, and submit transactions.
 //!
 //! TODO: Current chain methods are too low level, exposing too much of the
-//! internal workings of the bitcoin node, and not being very convenient to use.
+//! internal workings of the Elektron Net node, and not being very convenient to use.
 //! Chain methods should be cleaned up and simplified over time. Examples:
 //!
 //! * The initMessages() and showProgress() methods which the wallet uses to send
@@ -212,10 +213,10 @@ public:
     virtual void getTransactionAncestry(const Txid& txid, size_t& ancestors, size_t& cluster_count, size_t* ancestorsize = nullptr, CAmount* ancestorfees = nullptr) = 0;
 
     //! For each outpoint, calculate the fee-bumping cost to spend this outpoint at the specified
-    //  feerate, including bumping its ancestors. For example, if the target feerate is 10sat/vbyte
-    //  and this outpoint refers to a mempool transaction at 3sat/vbyte, the bump fee includes the
-    //  cost to bump the mempool transaction to 10sat/vbyte (i.e. 7 * mempooltx.vsize). If that
-    //  transaction also has, say, an unconfirmed parent with a feerate of 1sat/vbyte, the bump fee
+    //  feerate, including bumping its ancestors. For example, if the target feerate is 10lep/vbyte
+    //  and this outpoint refers to a mempool transaction at 3lep/vbyte, the bump fee includes the
+    //  cost to bump the mempool transaction to 10lep/vbyte (i.e. 7 * mempooltx.vsize). If that
+    //  transaction also has, say, an unconfirmed parent with a feerate of 1lep/vbyte, the bump fee
     //  includes the cost to bump the parent (i.e. 9 * parentmempooltx.vsize).
     //
     //  If the outpoint comes from an unconfirmed transaction that is already above the target

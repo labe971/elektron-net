@@ -1,4 +1,5 @@
 // Copyright (c) 2011-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -354,43 +355,27 @@ void BlockManager::FindFilesToPrune(
     uint64_t nBytesToPrune;
     int count = 0;
 
-    if (nCurrentUsage + nBuffer >= target) {
-        // On a prune event, the chainstate DB is flushed.
-        // To avoid excessive prune events negating the benefit of high dbcache
-        // values, we should not prune too rapidly.
-        // So when pruning in IBD, increase the buffer to avoid a re-prune too soon.
-        const auto chain_tip_height = chain.m_chain.Height();
-        if (chainman.IsInitialBlockDownload() && target_sync_height > (uint64_t)chain_tip_height) {
-            // Since this is only relevant during IBD, we assume blocks are at least 1 MB on average
-            static constexpr uint64_t average_block_size = 1000000;  /* 1 MB */
-            const uint64_t remaining_blocks = target_sync_height - chain_tip_height;
-            nBuffer += average_block_size * remaining_blocks;
+    // Elektron Net: mandatory 137-day pruning — always prune blocks older than
+    // MANDATORY_PRUNE_DEPTH from the tip, regardless of disk space usage.
+    for (int fileNumber = 0; fileNumber < this->MaxBlockfileNum(); fileNumber++) {
+        const auto& fileinfo = m_blockfile_info[fileNumber];
+        nBytesToPrune = fileinfo.nSize + fileinfo.nUndoSize;
+
+        if (fileinfo.nSize == 0) {
+            continue;
         }
 
-        for (int fileNumber = 0; fileNumber < this->MaxBlockfileNum(); fileNumber++) {
-            const auto& fileinfo = m_blockfile_info[fileNumber];
-            nBytesToPrune = fileinfo.nSize + fileinfo.nUndoSize;
-
-            if (fileinfo.nSize == 0) {
-                continue;
-            }
-
-            if (nCurrentUsage + nBuffer < target) { // are we below our target?
-                break;
-            }
-
-            // don't prune files that could have a block that's not within the allowable
-            // prune range for the chain being pruned.
-            if (fileinfo.nHeightLast > (unsigned)last_block_can_prune || fileinfo.nHeightFirst < (unsigned)min_block_to_prune) {
-                continue;
-            }
-
-            PruneOneBlockFile(fileNumber);
-            // Queue up the files for removal
-            setFilesToPrune.insert(fileNumber);
-            nCurrentUsage -= nBytesToPrune;
-            count++;
+        // don't prune files that could have a block that's not within the allowable
+        // prune range for the chain being pruned.
+        if (fileinfo.nHeightLast > (unsigned)last_block_can_prune || fileinfo.nHeightFirst < (unsigned)min_block_to_prune) {
+            continue;
         }
+
+        PruneOneBlockFile(fileNumber);
+        // Queue up the files for removal
+        setFilesToPrune.insert(fileNumber);
+        nCurrentUsage -= nBytesToPrune;
+        count++;
     }
 
     LogDebug(BCLog::PRUNE, "[%s] target=%dMiB actual=%dMiB diff=%dMiB min_height=%d max_prune_height=%d removed %d blk/rev pairs\n",

@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -6349,9 +6350,9 @@ std::pair<int, int> Chainstate::GetPruneRange(int last_height_can_prune) const
     }
 
     int max_prune = std::max<int>(
-        0, m_chain.Height() - static_cast<int>(MIN_BLOCKS_TO_KEEP));
+        0, m_chain.Height() - static_cast<int>(MANDATORY_PRUNE_DEPTH));
 
-    // last block to prune is the lesser of (caller-specified height, MIN_BLOCKS_TO_KEEP from the tip)
+    // last block to prune is the lesser of (caller-specified height, MANDATORY_PRUNE_DEPTH from the tip)
     //
     // While you might be tempted to prune the background chainstate more
     // aggressively (i.e. fewer MIN_BLOCKS_TO_KEEP), this won't work with index

@@ -1,5 +1,6 @@
 // Copyright (c) 2009-2010 Satoshi Nakamoto
 // Copyright (c) 2009-present The Bitcoin Core developers
+// Copyright (c) 2025-present The Elektron Net developers
 // Distributed under the MIT software license, see the accompanying
 // file COPYING or http://www.opensource.org/licenses/mit-license.php.
 
@@ -16,48 +17,48 @@
 #include <string>
 #include <type_traits>
 
-const std::string CURRENCY_UNIT = "BTC"; // One formatted unit
-const std::string CURRENCY_ATOM = "sat"; // One indivisible minimum value unit
+const std::string CURRENCY_UNIT = "ELEK"; // One formatted unit
+const std::string CURRENCY_ATOM = "lep"; // One indivisible minimum value unit
 
 enum class FeeRateFormat {
-    BTC_KVB, //!< Use BTC/kvB fee rate unit
-    SAT_VB,  //!< Use sat/vB fee rate unit
+    ELEK_KVB, //!< Use ELEK/kvB fee rate unit
+    LEP_VB,  //!< Use lep/vB fee rate unit
 };
 
 /**
- * Fee rate in satoshis per virtualbyte: CAmount / vB
+ * Fee rate in Lepton per virtualbyte: CAmount / vB
  * the feerate is represented internally as FeeFrac
  */
 class CFeeRate
 {
 private:
-    /** Fee rate in sats/vB (satoshis per N virtualbytes) */
+    /** Fee rate in lepton/vB (Lepton per N virtualbytes) */
     FeePerVSize m_feerate;
 
 public:
-    /** Fee rate of 0 satoshis per 0 vB */
+    /** Fee rate of 0 Lepton per 0 vB */
     CFeeRate() = default;
     template<std::integral I> // Disallow silent float -> int conversion
     explicit CFeeRate(const I m_feerate_kvb) : m_feerate(FeePerVSize(m_feerate_kvb, 1000)) {}
 
     /**
-     * Construct a fee rate from a fee in satoshis and a vsize in vB.
+     * Construct a fee rate from a fee in Lepton and a vsize in vB.
      *
      * Passing any virtual_bytes less than or equal to 0 will result in 0 fee rate per 0 size.
      */
     CFeeRate(const CAmount& nFeePaid, int32_t virtual_bytes);
 
     /**
-     * Return the fee in satoshis for the given vsize in vbytes.
-     * If the calculated fee would have fractional satoshis, then the
-     * returned fee will always be rounded up to the nearest satoshi.
+     * Return the fee in Lepton for the given vsize in vbytes.
+     * If the calculated fee would have fractional Lepton, then the
+     * returned fee will always be rounded up to the nearest Lepton.
      */
     CAmount GetFee(int32_t virtual_bytes) const;
 
     FeePerVSize GetFeePerVSize() const { return m_feerate; }
 
     /**
-     * Return the fee in satoshis for a vsize of 1000 vbytes
+     * Return the fee in Lepton for a vsize of 1000 vbytes
      */
     CAmount GetFeePerK() const { return CAmount(m_feerate.EvaluateFeeDown(1000)); }
     friend std::strong_ordering operator<=>(const CFeeRate& a, const CFeeRate& b) noexcept
@@ -72,7 +73,7 @@ public:
         m_feerate = FeePerVSize(GetFeePerK() + a.GetFeePerK(), 1000);
         return *this;
     }
-    std::string ToString(FeeRateFormat fee_rate_format = FeeRateFormat::BTC_KVB) const;
+    std::string ToString(FeeRateFormat fee_rate_format = FeeRateFormat::ELEK_KVB) const;
     friend CFeeRate operator*(const CFeeRate& f, int a) { return CFeeRate(a * f.m_feerate.fee, f.m_feerate.size); }
     friend CFeeRate operator*(int a, const CFeeRate& f) { return CFeeRate(a * f.m_feerate.fee, f.m_feerate.size); }
 
