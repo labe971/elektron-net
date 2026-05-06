@@ -13,6 +13,50 @@ This directory contains standalone CPU mining tools for Elektron Net, fully conf
 | `config.json` | Configuration for the C++ miner (RPC, threads, pool). |
 | `CMakeLists.txt` | Build file for the C++ miner. |
 
+## Node Setup & RPC Configuration
+
+Before any miner can connect, the Elektron Net node must be running with RPC enabled.
+
+### Configuration File
+
+The node reads `bitcoin.conf` (the filename is still inherited from upstream Bitcoin Core).  
+On **Windows** the file belongs in:
+
+```
+%LOCALAPPDATA%\Bitcoin\bitcoin.conf
+```
+
+(If the `Bitcoin` folder does not exist yet, create it manually.)
+
+Minimal configuration for local solo-mining:
+
+```ini
+# Aktiviere RPC-Server
+server=1
+
+# RPC-Zugang (nur für lokale Verbindungen)
+rpcuser=elek
+rpcpassword=pass
+rpcbind=127.0.0.1
+rpcallowip=127.0.0.1
+
+# Optional: eingehende P2P-Verbindungen erlauben
+listen=1
+```
+
+**Important:** The node will refuse to start until the genesis block is finalized.  
+`src/kernel/chainparams.cpp` still contains placeholder `assert(...)` lines that must be replaced with real values produced by `mine_genesis.py`. See the *Genesis Mining* section below.
+
+### Wallet Mining via Node RPC
+
+If you prefer the built-in `generatetoaddress` over the standalone miners, create a wallet first:
+
+```bash
+elektron-cli createwallet "miner"
+elektron-cli -rpcwallet=miner getnewaddress
+elektron-cli -rpcwallet=miner generatetoaddress 1 "<address>"
+```
+
 ## Protocol Compliance
 
 Both miners use the **standard Bitcoin RPC mining protocol**:
