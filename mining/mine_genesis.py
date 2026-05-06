@@ -87,8 +87,8 @@ def pubkey_from_priv(priv_hex):
 # You MUST back up this file or the generated results file.
 
 GENESIS_PUBKEY_HEX = (
-    "0417256d59a30a1849f1fbbbc507e1c5dabb91140de37b0860b86c778cf8403ad"
-    "3a70317000e6212f41fcc50b2f05f607454d1206eac580ddfde351c5578479de3"
+    "045e63e670b5b45bf8b371cfd15e03503db200509292e472750b4967c60c756d1"
+    "1ecd99bff51e91a01a04609c466e42345463bbeb194adb1ff3af595ceaaf5ef3d"
 )
 
 ALPHABET = (
