@@ -50,43 +50,43 @@ def _bech32_verify_checksum(hrp, data):
 
 
 def _bech32_convert_bits(data, from_bits, to_bits, pad=True):
+    """General power-of-2 base conversion (matches generate_address.py)."""
     acc = 0
     bits = 0
     ret = []
+    maxv = (1 << to_bits) - 1
     max_acc = (1 << (from_bits + to_bits - 1)) - 1
     for value in data:
+        if value < 0 or (value >> from_bits):
+            return None
         acc = ((acc << from_bits) | value) & max_acc
         bits += from_bits
         while bits >= to_bits:
             bits -= to_bits
-            ret.append((acc >> bits) & ((1 << to_bits) - 1))
+            ret.append((acc >> bits) & maxv)
     if pad:
         if bits:
-            ret.append((acc << (to_bits - bits)) & ((1 << to_bits) - 1))
-    elif bits >= from_bits or ((acc << (to_bits - bits)) & ((1 << to_bits) - 1)):
-        return None
+            ret.append((acc << (to_bits - bits)) & maxv)
     return ret
 
 
-def _bech32_decode(bech, strict=True):
+def _bech32_decode(bech):
     if any(ord(x) < 33 or ord(x) > 126 for x in bech):
-        return None, None, False
+        return None, None
     if bech.lower() != bech and bech.upper() != bech:
-        return None, None, False
+        return None, None
     bech = bech.lower()
     pos = bech.rfind('1')
     if pos < 1 or pos + 7 > len(bech):
-        return None, None, False
+        return None, None
     hrp = bech[:pos]
     data = [BECH32_CHARSET.find(x) for x in bech[pos + 1:]]
     if any(x == -1 for x in data):
-        return None, None, False
-    checksum_type = _bech32_verify_checksum(hrp, data)
-    valid = checksum_type >= 0
-    if strict and not valid:
-        return None, None, False
+        return None, None
+    if _bech32_verify_checksum(hrp, data) < 0:
+        return None, None
     decoded = _bech32_convert_bits(data[:-6], 5, 8, False)
-    return hrp, decoded, valid
+    return hrp, decoded
 
 
 def _base58_decode(s):
@@ -111,11 +111,9 @@ def address_to_scriptpubkey(addr):
     """Convert a bech32 or base58 address to its scriptPubKey bytes."""
     addr_lower = addr.lower()
     if addr_lower.startswith('be1') or addr_lower.startswith('tb1') or addr_lower.startswith('bcrt1'):
-        hrp, data, valid = _bech32_decode(addr, strict=False)
+        hrp, data = _bech32_decode(addr)
         if data is None:
             raise ValueError(f"Invalid bech32 address: {addr}")
-        if not valid:
-            print(f"WARNING: bech32 checksum mismatch for {addr} — using anyway (GUI-generated address)")
         witness_version = data[0]
         witness_program = bytes(data[1:])
         if witness_version == 0:
