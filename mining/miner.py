@@ -184,15 +184,16 @@ def _build_coinbase_tx(template, script_pubkey):
     height = template['height']
 
     # BIP34: block height as the first push in scriptSig
-    coinbase_tag = b'\x0b' + b'ElektronNet'  # push 11 bytes
-    script_sig = _script_num(height) + coinbase_tag
+    # NOTE: Elektron Net uses ONLY the height in scriptSig prefix (no extra tag).
+    # The node appends any coinbaseaux data itself in GenerateCoinbaseCommitment().
+    script_sig = _script_num(height)
 
     # --- inputs ---
     inputs = (bytes(32) +                          # prevout.hash (null)
               struct.pack('<I', 0xFFFFFFFF) +      # prevout.n
               _write_compact_size(len(script_sig)) +
               script_sig +
-              struct.pack('<I', 0xFFFFFFFF))       # nSequence
+              struct.pack('<I', 0xFFFFFFFE))       # nSequence = MAX_SEQUENCE_NONFINAL (timelock enforced)
 
     # --- outputs ---
     coinbasevalue = template['coinbasevalue']
@@ -218,7 +219,7 @@ def _build_coinbase_tx(template, script_pubkey):
     tx += inputs
     tx += _write_compact_size(output_count)
     tx += outputs
-    tx += struct.pack('<I', 0)       # locktime
+    tx += struct.pack('<I', height - 1)  # nLockTime = height - 1 (Elektron Net specific)
 
     if has_witness:
         # Insert segwit marker + flag after version
@@ -356,10 +357,22 @@ def mine_block(template, num_threads, coinbase_tx, transactions):
 
 
 def submit_block(rpc, template, nonce, coinbase_tx, transactions):
-    block_hex = _assemble_block(template, nonce, coinbase_tx, transactions).hex()
+    block = _assemble_block(template, nonce, coinbase_tx, transactions)
+    block_hex = block.hex()
+
+    # Local sanity check: verify the block hash
+    header = block[:80]
+    block_hash = _double_sha256(header)[::-1].hex()
+    print(f"Block hash (local):  {block_hash}")
+
     try:
-        rpc.call('submitblock', block_hex)
-        print("Block submitted successfully.")
+        result = rpc.call('submitblock', block_hex)
+        if result is None or result == "":
+            print("Block accepted.")
+        else:
+            print(f"Block submit result: {result}")
+            if result in ("duplicate", "duplicate-invalid", "duplicate-inconclusive", "inconclusive"):
+                print("WARNING: Block was NOT accepted into the chain!")
     except Exception as e:
         print(f"Submit failed: {e}")
 
