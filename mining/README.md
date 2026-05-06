@@ -44,8 +44,9 @@ rpcallowip=127.0.0.1
 listen=1
 ```
 
-**Important:** The node will refuse to start until the genesis block is finalized.  
-`src/kernel/chainparams.cpp` still contains placeholder `assert(...)` lines that must be replaced with real values produced by `mine_genesis.py`. See the *Genesis Mining* section below.
+**Note:** The genesis block in the official repository is already finalized.
+`src/kernel/chainparams.cpp` contains the real `assert(...)` values.
+You only need to run `mine_genesis.py` if you are creating a completely new fork.
 
 ### Wallet Mining via Node RPC
 

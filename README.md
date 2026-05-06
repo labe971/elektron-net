@@ -33,15 +33,13 @@ Key properties:
 
 ### Genesis Block
 
-The genesis block is mined once before mainnet launch using `mining/mine_genesis.py`.
-Parameters are set to `nBits = 0x1d7fffff` (~200× easier than Bitcoin, CPU-friendly)
-and the genesis message is:
+The genesis block has been mined and finalized. All network parameters
+(`hash`, `merkle root`, `time`, and `nonce`) are already baked into
+`src/kernel/chainparams.cpp` — the `assert(...)` lines contain the real values.
 
-> *"Mathematics secures your money. Time erases your traces. You own the moment."*
-
-After mining, the resulting `hash`, `merkle root`, `time`, and `nonce` are pasted
-into `src/kernel/chainparams.cpp` (the `assert` lines). Until then those values
-are placeholders.
+If you are creating a **new fork**, you must run `mining/mine_genesis.py` to generate
+your own genesis block and replace the parameters accordingly. For the official
+Elektron Net repository, no further action is required.
 
 License
 -------

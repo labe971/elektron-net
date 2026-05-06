@@ -56,6 +56,10 @@ For detailed Windows build instructions (tool installation, Visual Studio 2026 s
 
 ## 2. Genesis Wallet & Key Generation
 
+> **You only need this step if you are creating a completely new chain fork.**
+> The official Elektron Net repository already contains a finalized genesis block.
+> Skip to [Section 5](#5-building-the-node) if you just want to build and run the node.
+
 The genesis block reward of **5 ELEK** (500,000,000 lep) must go to a public key you control.
 
 ### Step 2a — Generate a fresh keypair
@@ -87,6 +91,8 @@ GENESIS_PUBKEY_HEX = (
 ---
 
 ## 3. Mining the Genesis Block
+
+> **Only needed for a new fork.** The official repository already has the finalized genesis values.
 
 ### What is being mined?
 
@@ -127,7 +133,7 @@ ELEKTRON NET GENESIS MINER
 ======================================================================
 
 Please enter the genesis private key (64 hex characters).
-Private key (hex): 95402f1dffe959ef95c0c403341e610e85d31bb7adf06ff7fe29ea6e142c30f7
+Private key (hex): <your-64-hex-private-key>
 Private key verified successfully.
 
 === Mining Mainnet genesis block ===
@@ -147,9 +153,14 @@ Results written to: .../mining/genesis_results.txt
 
 ## 4. Integrating Results into the C++ Source
 
-Open `genesis_results.txt`. It contains four ready-to-paste C++ blocks.
+In the official Elektron Net repository, this step is **already done**.
+The values from `mine_genesis.py` have been pasted into `src/kernel/chainparams.cpp`
+and the `assert(...)` lines contain the real genesis hashes and merkle roots.
 
-Open `src/kernel/chainparams.cpp` and replace the commented placeholder sections:
+If you are forking the project and generated your own genesis block, open
+`genesis_results.txt`. It contains four ready-to-paste C++ blocks.
+
+Open `src/kernel/chainparams.cpp` and replace the commented-out sections:
 
 | Network | Search for | Replace with block from `genesis_results.txt` |
 |---------|------------|-----------------------------------------------|
@@ -444,7 +455,10 @@ You should see:
 - `init message: Done loading`
 - No assertion failures (if genesis values were pasted correctly)
 
-If you see `assert(hashGenesisBlock)` failure, the genesis hash in `chainparams.cpp` does not match the mined value. Recheck `genesis_results.txt`.
+If you see `assert(hashGenesisBlock)` failure, your local source is out of date
+or you are building a fork with different genesis parameters.
+Recheck `genesis_results.txt` or verify that `src/kernel/chainparams.cpp`
+contains the correct values.
 
 ### Verify the node is running
 
@@ -582,7 +596,11 @@ Difficulty retargets every **2,016 blocks** (roughly 1.4 days at 60-second spaci
 Mathematics secures your money. Time erases your traces. You own the moment.
 ```
 
-### Genesis pubkey (example — replace with your own)
+### Genesis pubkey (example only)
+
+The following is a **placeholder example**. The real genesis public key used
+for the official network is embedded in `mining/mine_genesis.py` and is **not**
+published in documentation.
 
 ```
 0417256d59a30a1849f1fbbbc507e1c5dabb91140de37b0860b86c778cf8403ad
