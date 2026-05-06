@@ -182,7 +182,7 @@ def assemble_block(template: dict) -> str:
 
 def main():
     parser = argparse.ArgumentParser(description="Standalone Elektron Net CPU miner")
-    parser.add_argument('--url', default='http://127.0.0.1:6032', help='RPC URL')
+    parser.add_argument('--url', default='http://127.0.0.1:8332', help='RPC URL')
     parser.add_argument('--user', default='user', help='RPC username')
     parser.add_argument('--password', default='password', help='RPC password')
     parser.add_argument('--threads', type=int, default=4, help='Number of mining threads')

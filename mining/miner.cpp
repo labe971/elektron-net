@@ -182,7 +182,7 @@ public:
 // ---------------------------------------------------------------------------
 
 struct Config {
-    std::string rpc_url = "http://127.0.0.1:6032";
+    std::string rpc_url = "http://127.0.0.1:8332";
     std::string rpc_user = "user";
     std::string rpc_password = "password";
     std::string mining_address;

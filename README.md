@@ -29,7 +29,7 @@ Key properties:
 - **5 Elek** genesis block reward, scaled proportionally to the 60s interval
 - **Bech32m addresses** — standard P2WPKH / P2TR (`be1q...` / `be1p...` prefix)
 - **137-day pruning** — cryptographic forgetting, structural privacy by design
-- **P2P port 6033** (RPC 6032)
+- **P2P port 8333** (RPC 8332)
 
 ### Genesis Block
 

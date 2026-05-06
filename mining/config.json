@@ -1,6 +1,6 @@
 {
   "rpc": {
-    "url": "http://127.0.0.1:6032",
+    "url": "http://127.0.0.1:8332",
     "user": "user",
     "password": "password"
   },

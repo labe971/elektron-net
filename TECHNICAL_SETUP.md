@@ -344,7 +344,6 @@ To deploy it for Elektron Net:
    ```
 
 2. Edit `main.cpp` and change:
-   - `DEFAULT_PORT` from `8333` to `6033`
    - `pchMessageStart` to match Elektron Net: `{0xf9, 0xbe, 0xb4, 0xd9}` (or your custom magic)
    - Protocol version requirements if necessary
 
@@ -484,7 +483,7 @@ This uses the internal CPU miner in Bitcoin Core.
 
 ```bash
 cd mining
-python3 miner.py --url http://127.0.0.1:6032 --user elek --password ChangeThisStrongPassword123 --threads 4 --continuous
+python3 miner.py --url http://127.0.0.1:8332 --user elek --password ChangeThisStrongPassword123 --threads 4 --continuous
 ```
 
 ### Method C — Standalone C++ miner
@@ -502,7 +501,7 @@ Edit `config.json` before running:
 ```json
 {
   "rpc": {
-    "url": "http://127.0.0.1:6032",
+    "url": "http://127.0.0.1:8332",
     "user": "elek",
     "password": "ChangeThisStrongPassword123"
   },
@@ -544,10 +543,10 @@ Difficulty retargets every **2,016 blocks** (roughly 1.4 days at 60-second spaci
 
 | Network | RPC Port | P2P Port |
 |---------|----------|----------|
-| Mainnet | 6032 | 6033 |
-| Testnet3 | 16032 | 16033 |
-| Testnet4 | 26032 | 26033 |
-| Signet | 36032 | 36033 |
+| Mainnet | 8332 | 8333 |
+| Testnet3 | 18332 | 18333 |
+| Testnet4 | 48332 | 48333 |
+| Signet | 38332 | 38333 |
 | Regtest | 18443 | 18444 |
 
 ### Bech32 / Base58 prefixes

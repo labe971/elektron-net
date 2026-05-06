@@ -32,11 +32,11 @@ This is the same mechanism used by `cgminer`, `bfgminer`, and Bitcoin Core's int
 ### Usage
 
 ```bash
-# With default RPC settings (localhost:6032, user/password)
+# With default RPC settings (localhost:8332, user/password)
 python3 miner.py
 
 # Custom RPC
-python3 miner.py --url http://192.168.1.10:6032 --user elek --password secret --threads 8 --continuous
+python3 miner.py --url http://192.168.1.10:8332 --user elek --password secret --threads 8 --continuous
 ```
 
 ## C++ Miner
@@ -71,7 +71,7 @@ cmake --build .
 ```json
 {
   "rpc": {
-    "url": "http://127.0.0.1:6032",
+    "url": "http://127.0.0.1:8332",
     "user": "user",
     "password": "password"
   },
