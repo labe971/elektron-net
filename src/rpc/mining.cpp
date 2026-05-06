@@ -770,7 +770,7 @@ static RPCMethod getblocktemplate()
         if (connman.GetNodeCount(ConnectionDirection::Both) == 0) {
             // Elektron Net: on a fresh network there may be no peers yet.
             // Log a warning but do not prevent mining.
-            LogPrintf("getblocktemplate: no peers connected, but allowing mining for fresh Elektron Net network.\n");
+            LogWarning("getblocktemplate: no peers connected, but allowing mining for fresh Elektron Net network.\n");
         }
 
         if (miner.isInitialBlockDownload()) {
