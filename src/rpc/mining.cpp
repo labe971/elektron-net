@@ -767,7 +767,9 @@ static RPCMethod getblocktemplate()
     if (!miner.isTestChain()) {
         const CConnman& connman = EnsureConnman(node);
         if (connman.GetNodeCount(ConnectionDirection::Both) == 0) {
-            throw JSONRPCError(RPC_CLIENT_NOT_CONNECTED, CLIENT_NAME " is not connected!");
+            // Elektron Net: on a fresh network there may be no peers yet.
+            // Log a warning but do not prevent mining.
+            LogPrintf("getblocktemplate: no peers connected, but allowing mining for fresh Elektron Net network.\n");
         }
 
         if (miner.isInitialBlockDownload()) {

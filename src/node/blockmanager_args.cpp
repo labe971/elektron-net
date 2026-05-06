@@ -32,6 +32,10 @@ util::Result<void> ApplyArgsManOptions(const ArgsManager& args, BlockManager::Op
             return util::Error{strprintf(_("Prune configured below the minimum of %d MiB.  Please use a higher number."), MIN_DISK_SPACE_FOR_BLOCK_FILES / 1_MiB)};
         }
     }
+    // Elektron Net: mandatory pruning — always active, user cannot disable.
+    if (nPruneTarget == 0) {
+        nPruneTarget = MIN_DISK_SPACE_FOR_BLOCK_FILES;
+    }
     opts.prune_target = nPruneTarget;
 
     if (auto value{args.GetBoolArg("-fastprune")}) opts.fast_prune = *value;

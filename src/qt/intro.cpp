@@ -58,11 +58,9 @@ Intro::Intro(QWidget *parent, int64_t blockchain_size_gb, int64_t chain_state_si
 
     const int min_prune_target_GB = std::ceil(MIN_DISK_SPACE_FOR_BLOCK_FILES / 1e9);
     ui->pruneGB->setRange(min_prune_target_GB, std::numeric_limits<int>::max());
-    if (const auto arg{gArgs.GetIntArg("-prune")}) {
-        m_prune_checkbox_is_default = false;
-        ui->prune->setChecked(*arg >= 1);
-        ui->prune->setEnabled(false);
-    }
+    // Elektron Net: pruning is mandatory — user cannot disable it.
+    ui->prune->setChecked(true);
+    ui->prune->setEnabled(false);
     ui->pruneGB->setValue(m_prune_target_gb);
     ui->pruneGB->setToolTip(ui->prune->toolTip());
     ui->lblPruneSuffix->setToolTip(ui->prune->toolTip());
@@ -112,12 +110,8 @@ void Intro::setDataDirectory(const QString &dataDir)
 
 int64_t Intro::getPruneMiB() const
 {
-    switch (ui->prune->checkState()) {
-    case Qt::Checked:
-        return PruneGBtoMiB(m_prune_target_gb);
-    case Qt::Unchecked: default:
-        return 0;
-    }
+    // Elektron Net: pruning is mandatory.
+    return PruneGBtoMiB(m_prune_target_gb);
 }
 
 bool Intro::showIfNeeded(bool& did_show_intro, int64_t& prune_MiB)

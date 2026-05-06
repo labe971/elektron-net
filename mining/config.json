@@ -1,11 +1,11 @@
 {
   "rpc": {
     "url": "http://127.0.0.1:8332",
-    "user": "user",
-    "password": "password"
+    "user": "elek",
+    "password": "pass"
   },
   "mining": {
-    "address": "be1qxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "address": "be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y",
     "threads": 4,
     "target_spacing": 60
   },
