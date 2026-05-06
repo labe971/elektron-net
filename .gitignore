@@ -27,7 +27,3 @@ target/
 /guix-build-*
 
 /ci/scratch/
-
-# Claude Code working files
-.claude/
-CLAUDE.md

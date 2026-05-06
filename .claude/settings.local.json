@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(python3 *)",
+      "Bash(py *)",
+      "Bash(openssl ecparam *)",
+      "Bash(openssl ec *)",
+      "Bash(xxd -p -c 1000)",
+      "Bash(python mine_genesis.py)",
+      "Bash(python generate_address.py --count 2 --output test_wallet.txt)",
+      "Bash(grep -v 'Copyright\\\\|Bitcoin Core developers\\\\|Distributed under the MIT\\\\|BitcoinUnit\\\\|BitcoinApplication\\\\|BitcoinGUI\\\\|//.*Bitcoin core')",
+      "Bash(grep -v 'Copyright\\\\|Bitcoin Core developers\\\\|Distributed under the MIT\\\\|bitcoin-build-config\\\\|#include\\\\|//.*bitcoind')",
+      "Bash(grep -v 'Copyright\\\\|Bitcoin Core developers\\\\|Distributed under the MIT\\\\|bitcoin-build-config\\\\|#include\\\\|BitcoinUnit\\\\|BitcoinApplication\\\\|BitcoinGUI\\\\|BitcoinAddress\\\\|BitcoinAmount\\\\|parseBitcoinURI\\\\|formatBitcoinURI\\\\|openBitcoinConf\\\\|bitcoin.cpp\\\\|//.*Bitcoin core')",
+      "Bash(grep -v 'Copyright\\\\|Bitcoin Core developers\\\\|Distributed under the MIT\\\\|bitcoin-build-config\\\\|#include\\\\|BitcoinUnit\\\\|BitcoinApplication\\\\|BitcoinGUI\\\\|BitcoinAddress\\\\|BitcoinAmount\\\\|//.*Bitcoin\\\\|bitcoin.cpp\\\\|bitcoinstrings.cpp')",
+      "Bash(grep -v 'Copyright\\\\|Bitcoin Core developers\\\\|Distributed under the MIT\\\\|bitcoin-build-config\\\\|#include\\\\|//.*bitcoin')",
+      "Bash(grep -v 'Copyright\\\\|Bitcoin Core developers\\\\|Distributed under the MIT\\\\|bitcoin-build-config\\\\|#include\\\\|BitcoinUnit\\\\|BitcoinApplication\\\\|BitcoinGUI\\\\|BitcoinAddress\\\\|BitcoinAmount\\\\|//.*Bitcoin\\\\|bitcoin.cpp\\\\|SetupBitcoinTxArgs\\\\|SetupBitcoinUtilArgs\\\\|bitcoin-common\\\\|bitcoin-echo\\\\|bitcoin.it\\\\|en.bitcoin.it\\\\|libbitcoinkernel\\\\|\"bitcoin-cli\"\\\\|bitcoinstrings')",
+      "Bash(grep -v 'Copyright\\\\|Bitcoin Core developers\\\\|Distributed under the MIT\\\\|bitcoin-build-config\\\\|#include\\\\|//.*bitcoin\\\\|SetupBitcoin\\\\|bitcoin-common\\\\|bitcoin-echo\\\\|bitcoin.it\\\\|en.bitcoin.it\\\\|libbitcoinkernel\\\\|\"bitcoin-cli\"\\\\|bitcoinstrings\\\\|parseBitcoinURI\\\\|formatBitcoinURI\\\\|openBitcoinConf\\\\|BitcoinAddress\\\\|BitcoinAmount\\\\|BitcoinUnit\\\\|BitcoinApplication\\\\|BitcoinGUI')",
+      "Bash(git grep *)",
+      "Bash(grep \"src/.*\\\\.\\\\\\(cpp\\\\|h\\\\\\)$\")",
+      "Bash(xargs -I {} git grep -n -i \"bitcoin\" {})",
+      "Bash(grep \"^src/.*\\\\.\\\\\\(cpp\\\\|h\\\\\\)$\")",
+      "Read(//tmp/**)"
+    ]
+  }
+}
