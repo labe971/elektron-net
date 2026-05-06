@@ -364,6 +364,26 @@ To spend it you must build a raw transaction where the scriptSig is exactly
 
 
 # =============================================================================
+# PUBLIC KEY / SCRIPT FOR src/kernel/chainparams.cpp
+# =============================================================================
+# The values below MUST be inserted into the CreateGenesisBlock() helper
+# or the individual network constructors in src/kernel/chainparams.cpp.
+# If they do not match the key used during mining, the assert() checks
+# will fail and the node will abort on startup.
+# =============================================================================
+
+Mainnet / Testnet3 / Signet / Regtest — genesis public key (hex):
+  {pub_hex}
+  ^^^ This goes into the helper function at line ~72:
+      const CScript genesisOutputScript = CScript() << "{pub_hex}"_hex << OP_CHECKSIG;
+
+Testnet4 — genesis script public key (hex):
+  000000000000000000000000000000000000000000000000000000000000000000
+  ^^^ This goes into CTestNet4Params (line ~290):
+      const CScript testnet4_genesis_script = CScript() << "000000000000000000000000000000000000000000000000000000000000000000"_hex << OP_CHECKSIG;
+
+
+# =============================================================================
 # GENESIS BLOCK PARAMETERS
 # =============================================================================
 
@@ -379,20 +399,26 @@ To spend it you must build a raw transaction where the scriptSig is exactly
 # =============================================================================
 # COPY-PASTE CODE FOR src/kernel/chainparams.cpp
 # =============================================================================
+# IMPORTANT: Before pasting, verify that the uncompressed public key in the
+#   CreateGenesisBlock() helper function (line ~72) matches the pubkey used
+#   to generate these hashes (see WALLET CREDENTIALS above). If the pubkey
+#   does not match, the assert() checks below will fail.
+#   Search inside chainparams.cpp for the class names to locate the blocks.
+# =============================================================================
 
---- Mainnet (around line 122) ---
+--- Mainnet (CMainParams constructor, around line 123) ---
     genesis = CreateGenesisBlock({main_time}, {main_nonce}, 0x{n_bits:08x}, 1, 5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
     assert(consensus.hashGenesisBlock == uint256{{"{main_hash}"}});
     assert(genesis.hashMerkleRoot == uint256{{"{main_merkle}"}});
 
---- Testnet3 (around line 238) ---
+--- Testnet3 (CTestNetParams constructor, around line 208) ---
     genesis = CreateGenesisBlock({test3_time}, {test3_nonce}, 0x{n_bits:08x}, 1, 5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
     assert(consensus.hashGenesisBlock == uint256{{"{test3_hash}"}});
     assert(genesis.hashMerkleRoot == uint256{{"{test3_merkle}"}});
 
---- Testnet4 (around line 340) ---
+--- Testnet4 (CTestNet4Params constructor, around line 291) ---
     genesis = CreateGenesisBlock(testnet4_genesis_msg,
             testnet4_genesis_script,
             {test4_time},
@@ -404,13 +430,13 @@ To spend it you must build a raw transaction where the scriptSig is exactly
     assert(consensus.hashGenesisBlock == uint256{{"{test4_hash}"}});
     assert(genesis.hashMerkleRoot == uint256{{"{test4_merkle}"}});
 
---- Signet (around line 478) ---
+--- Signet (SigNetParams constructor, around line 412) ---
     genesis = CreateGenesisBlock({signet_time}, {signet_nonce}, 0x{n_bits:08x}, 1, 5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
     assert(consensus.hashGenesisBlock == uint256{{"{signet_hash}"}});
     assert(genesis.hashMerkleRoot == uint256{{"{signet_merkle}"}});
 
---- Regtest (around line 589) ---
+--- Regtest (CRegTestParams constructor, around line 510) ---
     genesis = CreateGenesisBlock(1296688602, 2, 0x207fffff, 1, 5 * COIN);
     consensus.hashGenesisBlock = genesis.GetHash();
     assert(consensus.hashGenesisBlock == uint256{{"{reg_hash}"}});
@@ -587,7 +613,12 @@ if __name__ == "__main__":
     print("NEXT STEPS")
     print("=" * 70)
     print("1. Open genesis_results.txt and copy the code blocks into")
-    print("   src/kernel/chainparams.cpp (replace the placeholder lines).")
-    print("2. Rebuild the project: cmake --build .")
-    print("3. Start the node: ./src/elektrond")
-    print("4. Keep genesis_results.txt SECURE — it holds your private key!")
+    print("   src/kernel/chainparams.cpp.")
+    print("   Replace ONLY the lines between 'genesis = CreateGenesisBlock(...)'")
+    print("   and the two 'assert(...)' lines inside each network class.")
+    print("   Do NOT change any other consensus parameters.")
+    print("2. Double-check that the public key in the CreateGenesisBlock()")
+    print("   helper (line ~72) matches the WALLET CREDENTIALS pubkey above.")
+    print("3. Rebuild the project: cmake --build .")
+    print("4. Start the node: ./src/elektrond")
+    print("5. Keep genesis_results.txt SECURE — it holds your private key!")

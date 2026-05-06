@@ -69,7 +69,7 @@ static CBlock CreateGenesisBlock(const char* pszTimestamp, const CScript& genesi
 static CBlock CreateGenesisBlock(uint32_t nTime, uint32_t nNonce, uint32_t nBits, int32_t nVersion, const CAmount& genesisReward)
 {
     const char* pszTimestamp = "Mathematics secures your money. Time erases your traces. You own the moment.";
-    const CScript genesisOutputScript = CScript() << "0417256d59a30a1849f1fbbbc507e1c5dabb91140de37b0860b86c778cf8403ad3a70317000e6212f41fcc50b2f05f607454d1206eac580ddfde351c5578479de3"_hex << OP_CHECKSIG;
+    const CScript genesisOutputScript = CScript() << "045e63e670b5b45bf8b371cfd15e03503db200509292e472750b4967c60c756d11ecd99bff51e91a01a04609c466e42345463bbeb194adb1ff3af595ceaaf5ef3d"_hex << OP_CHECKSIG;
     return CreateGenesisBlock(pszTimestamp, genesisOutputScript, nTime, nNonce, nBits, nVersion, genesisReward);
 }
 
