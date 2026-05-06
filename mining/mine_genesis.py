@@ -272,7 +272,7 @@ def build_tx_testnet4(reward=500_000_000):
     vout_count = make_varint(1)
     value = struct.pack("<Q", reward)
 
-    script_pub = bytes([0x20]) + b"\x00" * 32 + bytes([0xac])
+    script_pub = bytes([0x21]) + b"\x00" * 33 + bytes([0xac])
     script_pub_len = make_varint(len(script_pub))
 
     locktime = struct.pack("<I", 0)
@@ -373,6 +373,7 @@ To spend it you must build a raw transaction where the scriptSig is exactly
 | Testnet3 | {test3_time:10} | {test3_nonce:12} | {test3_hash} | {test3_merkle} |
 | Testnet4 | {test4_time:10} | {test4_nonce:12} | {test4_hash} | {test4_merkle} |
 | Signet   | {signet_time:10} | {signet_nonce:12} | {signet_hash} | {signet_merkle} |
+| Regtest  | {reg_time:10} | {reg_nonce:12} | {reg_hash} | {reg_merkle} |
 
 
 # =============================================================================
@@ -411,7 +412,9 @@ To spend it you must build a raw transaction where the scriptSig is exactly
 
 --- Regtest (around line 589) ---
     genesis = CreateGenesisBlock(1296688602, 2, 0x207fffff, 1, 5 * COIN);
-    // Regtest hashes stay as-is (instant PoW, no real mining)
+    consensus.hashGenesisBlock = genesis.GetHash();
+    assert(consensus.hashGenesisBlock == uint256{{"{reg_hash}"}});
+    assert(genesis.hashMerkleRoot == uint256{{"{reg_merkle}"}});
 
 # =============================================================================
 """.format(
@@ -438,6 +441,10 @@ To spend it you must build a raw transaction where the scriptSig is exactly
                 signet_nonce=data["signet"]["nonce"],
                 signet_hash=data["signet"]["hash"],
                 signet_merkle=data["signet"]["merkle"],
+                reg_time=data["regtest"]["time"],
+                reg_nonce=data["regtest"]["nonce"],
+                reg_hash=data["regtest"]["hash"],
+                reg_merkle=data["regtest"]["merkle"],
             )
         )
     print(f"\nResults written to: {os.path.abspath(filename)}")
@@ -517,6 +524,21 @@ if __name__ == "__main__":
     signet_nonce, signet_hash, signet_merkle = mine_genesis(
         "Signet", signet_time, n_bits, build_tx_mainnet)
 
+    # Compute regtest hash (no mining needed, nonce=2 works because powLimit is max)
+    regtest_tx = build_tx_mainnet(reward=500_000_000)
+    regtest_merkle_bytes = double_sha256(regtest_tx)
+    regtest_merkle = uint256_to_hex(regtest_merkle_bytes)
+    regtest_header = (
+        struct.pack("<I", 1)
+        + b"\x00" * 32
+        + regtest_merkle_bytes
+        + struct.pack("<I", 1296688602)
+        + struct.pack("<I", 0x207fffff)
+        + struct.pack("<I", 2)
+    )
+    regtest_hash = uint256_to_hex(double_sha256(regtest_header))
+    print(f"\nRegtest:   time=1296688602 nonce=2 hash={regtest_hash} merkle={regtest_merkle}")
+
     results = {
         "mainnet": {
             "time": mainnet_time,
@@ -542,6 +564,12 @@ if __name__ == "__main__":
             "hash": signet_hash,
             "merkle": signet_merkle,
         },
+        "regtest": {
+            "time": 1296688602,
+            "nonce": 2,
+            "hash": regtest_hash,
+            "merkle": regtest_merkle,
+        },
     }
 
     print("\n" + "=" * 70)
@@ -551,6 +579,7 @@ if __name__ == "__main__":
     print(f"Testnet3:  time={current_time} nonce={testnet3_nonce} hash={testnet3_hash} merkle={testnet3_merkle}")
     print(f"Testnet4:  time={current_time} nonce={testnet4_nonce} hash={testnet4_hash} merkle={testnet4_merkle}")
     print(f"Signet:    time={current_time} nonce={signet_nonce} hash={signet_hash} merkle={signet_merkle}")
+    print(f"Regtest:   time=1296688602 nonce=2 hash={regtest_hash} merkle={regtest_merkle}")
 
     write_results("genesis_results.txt", results, priv_input, wif, p2pkh, p2wpkh, n_bits)
 

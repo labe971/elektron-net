@@ -120,9 +120,9 @@ public:
         m_assumed_blockchain_size = 856;
         m_assumed_chain_state_size = 14;
 
-        genesis = CreateGenesisBlock(1778051699, 55870057, 0x1d7fffff, 1, 5 * COIN);
+        genesis = CreateGenesisBlock(1778061124, 52868307, 0x1d7fffff, 1, 5 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"0000000ba0077eb52f33fe86d003ff789fb26c373703a2f8d6cb4bf07f6f6a60"});
+        assert(consensus.hashGenesisBlock == uint256{"000000433f101f396e5c8ca136ca77c6c79ceea83ddcc223c25d0067290f3716"});
         assert(genesis.hashMerkleRoot == uint256{"17d08e6241eafe5d1e142f8c717280ccab4789fb6fa143ddad65c13bb69e8e26"});
 
         // Note that of those which support the service bits prefix, most only support a subset of
@@ -205,9 +205,9 @@ public:
         m_assumed_blockchain_size = 245;
         m_assumed_chain_state_size = 19;
 
-        genesis = CreateGenesisBlock(1778051836, 18091273, 0x1d7fffff, 1, 5 * COIN);
+        genesis = CreateGenesisBlock(1778061261, 91298235, 0x1d7fffff, 1, 5 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"0000002bc1e1e09fd03b9d9212d877e80453b8bf63bb7ec98cf5d8997354461f"});
+        assert(consensus.hashGenesisBlock == uint256{"000000420e8be319b21636a28251da0b5c76853e063c72e246a9494fe0aef519"});
         assert(genesis.hashMerkleRoot == uint256{"17d08e6241eafe5d1e142f8c717280ccab4789fb6fa143ddad65c13bb69e8e26"});
 
         vFixedSeeds.clear();
@@ -290,14 +290,14 @@ public:
         const CScript testnet4_genesis_script = CScript() << "000000000000000000000000000000000000000000000000000000000000000000"_hex << OP_CHECKSIG;
         genesis = CreateGenesisBlock(testnet4_genesis_msg,
                 testnet4_genesis_script,
-                1778051973,
-                4338414,
+                1778061398,
+                15872725,
                 0x1d7fffff,
                 1,
                 5 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"00000075b43916d6ae17c7a549e43e33e3a0c131d7fdfe29960535b6e4dd530b"});
-        assert(genesis.hashMerkleRoot == uint256{"f669fa8a4fe21beba5e6fe95bce7e551482818a2aa250e90dd6c40730f1fa578"});
+        assert(consensus.hashGenesisBlock == uint256{"000000492a402230f41883a02ef24b052df89c912adb2906e32e8f3375d83f7e"});
+        assert(genesis.hashMerkleRoot == uint256{"fa6b057c611cbc9a40df72e36140da01bfa98d1371d5e7b36f789228c5004bf5"});
 
         vFixedSeeds.clear();
         vSeeds.clear();
@@ -409,9 +409,9 @@ public:
         nDefaultPort = 36033;
         nPruneAfterHeight = 1000;
 
-        genesis = CreateGenesisBlock(1778052110, 21638640, 0x1d7fffff, 1, 5 * COIN);
+        genesis = CreateGenesisBlock(1778061535, 87004162, 0x1d7fffff, 1, 5 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"0000005691be7780f5d9a16bf73b26aad9e724542e83cfd4fc25b37b3c0e9e9a"});
+        assert(consensus.hashGenesisBlock == uint256{"00000024ea2c84da59afd818e64d0e812fdb0b81ffacc487430db75034f71e0f"});
         assert(genesis.hashMerkleRoot == uint256{"17d08e6241eafe5d1e142f8c717280ccab4789fb6fa143ddad65c13bb69e8e26"});
 
         m_assumeutxo_data = {};
@@ -509,8 +509,8 @@ public:
 
         genesis = CreateGenesisBlock(1296688602, 2, 0x207fffff, 1, 5 * COIN);
         consensus.hashGenesisBlock = genesis.GetHash();
-        assert(consensus.hashGenesisBlock == uint256{"0f9188f13cb7b2c71f2a335e3a4fc328bf5beb436012afca590b1a11466e2206"});
-        assert(genesis.hashMerkleRoot == uint256{"025b2a1ebba17b5b6d5c80c80819aefddc8b2abfe12af4db74023e8233d570d8"});
+        assert(consensus.hashGenesisBlock == uint256{"59188e9f1ec6f395c26e43596d9b7b37f9e47c7ab221b77eec91e0958861e221"});
+        assert(genesis.hashMerkleRoot == uint256{"17d08e6241eafe5d1e142f8c717280ccab4789fb6fa143ddad65c13bb69e8e26"});
 
         vFixedSeeds.clear(); //!< Regtest mode doesn't have any fixed seeds.
         vSeeds.clear();
