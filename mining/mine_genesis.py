@@ -210,6 +210,19 @@ def make_varint(n):
         return b"\xff" + struct.pack("<Q", n)
 
 
+def make_pushdata(data):
+    """Embed data with the correct Bitcoin Script pushdata prefix."""
+    n = len(data)
+    if n <= 75:
+        return bytes([n]) + data
+    elif n < 256:
+        return bytes([0x4C, n]) + data
+    elif n < 65536:
+        return bytes([0x4D]) + struct.pack("<H", n) + data
+    else:
+        return bytes([0x4E]) + struct.pack("<I", n) + data
+
+
 def build_tx_mainnet(reward=500_000_000):
     """Build the standard genesis transaction used by mainnet/testnet3/signet."""
     version = struct.pack("<I", 1)
@@ -221,8 +234,7 @@ def build_tx_mainnet(reward=500_000_000):
     psz = b"Mathematics secures your money. Time erases your traces. You own the moment."
     script_sig = (
         bytes([0x04, 0xff, 0xff, 0x00, 0x1d, 0x01, 0x04])
-        + bytes([len(psz)])
-        + psz
+        + make_pushdata(psz)
     )
     script_sig_len = make_varint(len(script_sig))
     sequence = struct.pack("<I", 0xffffffff)
@@ -252,8 +264,7 @@ def build_tx_testnet4(reward=500_000_000):
     psz = b"03/May/2024 000000000000000000001ebd58c244970b3aa9d783bb001011fbe8ea8e98e00e"
     script_sig = (
         bytes([0x04, 0xff, 0xff, 0x00, 0x1d, 0x01, 0x04])
-        + bytes([len(psz)])
-        + psz
+        + make_pushdata(psz)
     )
     script_sig_len = make_varint(len(script_sig))
     sequence = struct.pack("<I", 0xffffffff)
