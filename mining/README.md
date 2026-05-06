@@ -10,14 +10,16 @@ This directory contains standalone CPU mining tools for Elektron Net, fully conf
 | `generate_address.py` | Generate Elektron Net addresses (P2PKH + P2WPKH) with private keys. |
 | `miner.py` | Standalone Python miner. Connects via RPC, fetches templates, mines, submits. |
 | `miner.cpp` | Standalone C++ miner. Multi-threaded, configurable via JSON. |
-| `config.json` | Configuration for the C++ miner (RPC, threads, pool). |
+| `config.json` | Configuration file for both Python and C++ miner (RPC, payout address, threads). |
 | `CMakeLists.txt` | Build file for the C++ miner. |
+
+---
 
 ## Node Setup & RPC Configuration
 
 Before any miner can connect, the Elektron Net node must be running with RPC enabled.
 
-### Configuration File
+### Node Configuration
 
 The node reads `bitcoin.conf` (the filename is still inherited from upstream Bitcoin Core).  
 On **Windows** the file belongs in:
@@ -31,16 +33,16 @@ On **Windows** the file belongs in:
 Minimal configuration for local solo-mining:
 
 ```ini
-# Aktiviere RPC-Server
+# Activate RPC server
 server=1
 
-# RPC-Zugang (nur für lokale Verbindungen)
+# RPC access (local only)
 rpcuser=elek
 rpcpassword=pass
 rpcbind=127.0.0.1
 rpcallowip=127.0.0.1
 
-# Optional: eingehende P2P-Verbindungen erlauben
+# Optional: allow incoming P2P connections
 listen=1
 ```
 
@@ -48,45 +50,138 @@ listen=1
 `src/kernel/chainparams.cpp` contains the real `assert(...)` values.
 You only need to run `mine_genesis.py` if you are creating a completely new fork.
 
-### Wallet Mining via Node RPC
+### Wallet Setup (Required for Mining)
 
-If you prefer the built-in `generatetoaddress` over the standalone miners, create a wallet first:
+The standalone miners need a **payout address**. Generate one first:
 
 ```bash
-elektron-cli createwallet "miner"
-elektron-cli -rpcwallet=miner getnewaddress
-elektron-cli -rpcwallet=miner generatetoaddress 1 "<address>"
+# Via the node's built-in wallet
+./elektron-cli createwallet "miner"
+./elektron-cli -rpcwallet=miner getnewaddress
+# Result: e.g. "be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y"
 ```
+
+Alternatively, use the offline address generator:
+
+```bash
+python3 generate_address.py
+```
+
+Copy this address into `config.json` (field `mining.address`) or pass it via `--address`.
+
+### Quick Mining via `generatetoaddress`
+
+If you prefer the node's built-in mining over the standalone miners:
+
+```bash
+./elektron-cli createwallet "miner"
+./elektron-cli -rpcwallet=miner getnewaddress
+./elektron-cli -rpcwallet=miner generatetoaddress 1 "<address>"
+```
+
+---
 
 ## Protocol Compliance
 
 Both miners use the **standard Bitcoin RPC mining protocol**:
 
-1. `getblocktemplate` — fetch work from the node.
+1. `getblocktemplate` -- fetch work from the node.
 2. SHA-256d brute-force on the block header.
-3. `submitblock` — send the solved block back to the node.
+3. `submitblock` -- send the solved block back to the node.
 
 This is the same mechanism used by `cgminer`, `bfgminer`, and Bitcoin Core's internal `generate` (now `generatetoaddress`).
 
-## Python Miner
+---
+
+## Configuration File (`config.json`)
+
+All settings can be placed in `config.json` in the same directory as the miner.
+
+```json
+{
+  "rpc": {
+    "url": "http://127.0.0.1:8332",
+    "user": "elek",
+    "password": "pass"
+  },
+  "mining": {
+    "address": "be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y",
+    "threads": 4,
+    "target_spacing": 60
+  },
+  "pool": {
+    "enabled": false,
+    "url": "stratum+tcp://pool.elektron-net.org:3333",
+    "user": "worker.1",
+    "password": "x"
+  }
+}
+```
+
+### Config Reference
+
+| Section | Key | Type | Default | Description |
+|---------|-----|------|---------|-------------|
+| `rpc` | `url` | string | `http://127.0.0.1:8332` | RPC endpoint of the Elektron Net node. |
+| `rpc` | `user` | string | `"user"` | RPC username. |
+| `rpc` | `password` | string | `"password"` | RPC password. |
+| `mining` | `address` | string | `""` | **Payout address** (bech32 or base58). **Required.** |
+| `mining` | `threads` | integer | `4` | Number of CPU threads for mining. |
+| `mining` | `target_spacing` | integer | `60` | Block target spacing in seconds (informational only). |
+| `pool` | `enabled` | boolean | `false` | Enable Stratum pool mining (C++ miner only). |
+| `pool` | `url` | string | `"stratum+tcp://..."` | Stratum pool URL. |
+| `pool` | `user` | string | `"worker.1"` | Pool worker username. |
+| `pool` | `password` | string | `"x"` | Pool worker password. |
+
+---
+
+## Python Miner (`miner.py`)
 
 ### Requirements
+
 - Python 3.8+
 - No external dependencies (stdlib only)
 
-### Usage
+### Command-Line Arguments
+
+| Argument | Default | Description |
+|----------|---------|-------------|
+| `--url` | from `config.json` or `http://127.0.0.1:8332` | RPC endpoint URL. |
+| `--user` | from `config.json` or `"user"` | RPC username. |
+| `--password` | from `config.json` or `"password"` | RPC password. |
+| `--address` | from `config.json` or `""` | **Payout address** (bech32 or base58). Overrides config. |
+| `--threads` | from `config.json` or `4` | Number of mining threads. |
+| `--continuous` | disabled | Mine continuously in a loop (non-stop). |
+
+### Usage Examples
 
 ```bash
-# With default RPC settings (localhost:8332, user/password)
-python miner.py
+# Minimal: read everything from config.json
+python3 miner.py
 
-# Custom RPC
-python miner.py --url http://127.0.0.1:8332 --user elek --password secret --threads 8 --continuous
+# Specify payout address directly (overrides config.json)
+python3 miner.py --address be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y
+
+# Custom RPC credentials + address
+python3 miner.py --url http://127.0.0.1:8332 --user elek --password secret \
+                 --address be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y \
+                 --threads 8 --continuous
 ```
 
-## C++ Miner
+### Supported Address Formats
+
+The Python miner automatically detects and supports:
+
+- **Bech32 (native SegWit):** `be1q...` (P2WPKH, v0), `be1p...` (P2TR, v1)
+- **Base58 (legacy):** `1...` (P2PKH mainnet), `3...` (P2SH mainnet)
+- **Base58 (testnet/regtest):** `m...` / `n...` (P2PKH), `2...` (P2SH)
+
+---
+
+## C++ Miner (`miner.cpp`)
 
 ### Requirements
+
 - C++20 compiler (GCC 10+, Clang 12+, MSVC 2019+)
 - CMake 3.16+
 - libcurl
@@ -104,35 +199,14 @@ cmake --build .
 ### Usage
 
 ```bash
-# Default config.json in same directory
+# Default: reads config.json in same directory
 ./elektron_miner
 
 # Custom config path
 ./elektron_miner /path/to/config.json
 ```
 
-### Config File (`config.json`)
-
-```json
-{
-  "rpc": {
-    "url": "http://127.0.0.1:8332",
-    "user": "user",
-    "password": "password"
-  },
-  "mining": {
-    "address": "be1q...",
-    "threads": 4,
-    "target_spacing": 60
-  },
-  "pool": {
-    "enabled": false,
-    "url": "stratum+tcp://pool.elektron-net.org:3333",
-    "user": "worker.1",
-    "password": "x"
-  }
-}
-```
+---
 
 ## Address Generator
 
@@ -151,6 +225,8 @@ python3 generate_address.py --seed 95402f1dffe959ef95c0c403341e610e85d31bb7adf06
 
 Output is written to a `.txt` file containing all keys. **Keep it secure.**
 
+---
+
 ## Genesis Mining
 
 **Do NOT run `mine_genesis.py` until you are ready to finalize the chain parameters.**
@@ -162,4 +238,6 @@ cd mining
 python3 mine_genesis.py
 ```
 
-This will output nonces, block hashes, and merkle roots for Mainnet, Testnet3, Testnet4, and Signet. Copy these values into `src/kernel/chainparams.cpp`.
+This will output nonces, block hashes, and merkle roots for Mainnet, Testnet3, Testnet4, Signet, and Regtest. Copy these values into `src/kernel/chainparams.cpp`.
+
+The script also writes `genesis_results.txt` (contains the genesis private key -- **never commit this file**).
