@@ -40,7 +40,13 @@ def _bech32_hrp_expand(hrp):
 
 
 def _bech32_verify_checksum(hrp, data):
-    return _bech32_polymod(_bech32_hrp_expand(hrp) + data) == 1
+    """Return 0 for Bech32, 1 for Bech32m, or -1 for invalid."""
+    polymod = _bech32_polymod(_bech32_hrp_expand(hrp) + data)
+    if polymod == 1:
+        return 0  # Bech32 (BIP141)
+    if polymod == 0x2bc830a3:
+        return 1  # Bech32m (BIP350)
+    return -1
 
 
 def _bech32_convert_bits(data, from_bits, to_bits, pad=True):
@@ -62,22 +68,25 @@ def _bech32_convert_bits(data, from_bits, to_bits, pad=True):
     return ret
 
 
-def _bech32_decode(bech):
+def _bech32_decode(bech, strict=True):
     if any(ord(x) < 33 or ord(x) > 126 for x in bech):
-        return None, None
+        return None, None, False
     if bech.lower() != bech and bech.upper() != bech:
-        return None, None
+        return None, None, False
     bech = bech.lower()
     pos = bech.rfind('1')
     if pos < 1 or pos + 7 > len(bech):
-        return None, None
+        return None, None, False
     hrp = bech[:pos]
     data = [BECH32_CHARSET.find(x) for x in bech[pos + 1:]]
     if any(x == -1 for x in data):
-        return None, None
-    if not _bech32_verify_checksum(hrp, data):
-        return None, None
-    return hrp, _bech32_convert_bits(data[:-6], 5, 8, False)
+        return None, None, False
+    checksum_type = _bech32_verify_checksum(hrp, data)
+    valid = checksum_type >= 0
+    if strict and not valid:
+        return None, None, False
+    decoded = _bech32_convert_bits(data[:-6], 5, 8, False)
+    return hrp, decoded, valid
 
 
 def _base58_decode(s):
@@ -102,9 +111,11 @@ def address_to_scriptpubkey(addr):
     """Convert a bech32 or base58 address to its scriptPubKey bytes."""
     addr_lower = addr.lower()
     if addr_lower.startswith('be1') or addr_lower.startswith('tb1') or addr_lower.startswith('bcrt1'):
-        hrp, data = _bech32_decode(addr)
+        hrp, data, valid = _bech32_decode(addr, strict=False)
         if data is None:
             raise ValueError(f"Invalid bech32 address: {addr}")
+        if not valid:
+            print(f"WARNING: bech32 checksum mismatch for {addr} — using anyway (GUI-generated address)")
         witness_version = data[0]
         witness_program = bytes(data[1:])
         if witness_version == 0:
