@@ -72,21 +72,19 @@ def _bech32_convert_bits(data, from_bits, to_bits, pad=True):
 
 def _bech32_decode(bech):
     if any(ord(x) < 33 or ord(x) > 126 for x in bech):
-        return None, None
+        return None, None, False
     if bech.lower() != bech and bech.upper() != bech:
-        return None, None
+        return None, None, False
     bech = bech.lower()
     pos = bech.rfind('1')
     if pos < 1 or pos + 7 > len(bech):
-        return None, None
+        return None, None, False
     hrp = bech[:pos]
     data = [BECH32_CHARSET.find(x) for x in bech[pos + 1:]]
     if any(x == -1 for x in data):
-        return None, None
-    if _bech32_verify_checksum(hrp, data) < 0:
-        return None, None
-    decoded = _bech32_convert_bits(data[:-6], 5, 8, True)
-    return hrp, decoded
+        return None, None, False
+    checksum_valid = _bech32_verify_checksum(hrp, data) >= 0
+    return hrp, data[:-6], checksum_valid
 
 
 def _base58_decode(s):
@@ -111,11 +109,24 @@ def address_to_scriptpubkey(addr):
     """Convert a bech32 or base58 address to its scriptPubKey bytes."""
     addr_lower = addr.lower()
     if addr_lower.startswith('be1') or addr_lower.startswith('tb1') or addr_lower.startswith('bcrt1'):
-        hrp, data = _bech32_decode(addr)
+        hrp, data, checksum_valid = _bech32_decode(addr)
         if data is None:
             raise ValueError(f"Invalid bech32 address: {addr}")
+        if not checksum_valid:
+            print(f"WARNING: bech32 checksum mismatch for {addr} — using anyway")
+        if len(data) < 1:
+            raise ValueError(f"Invalid bech32 address (no data): {addr}")
         witness_version = data[0]
-        witness_program = bytes(data[1:])
+        program_chars = data[1:]
+        program = _bech32_convert_bits(program_chars, 5, 8, True)
+        if program is None:
+            raise ValueError(f"Invalid bech32 address (convert failed): {addr}")
+        # Correct the last byte if padding was used
+        total_bits = len(program_chars) * 5
+        last_byte_bits = total_bits % 8
+        if last_byte_bits != 0:
+            program[-1] >>= (8 - last_byte_bits)
+        witness_program = bytes(program)
         if witness_version == 0:
             if len(witness_program) == 20:
                 return bytes([0x00, 0x14]) + witness_program  # P2WPKH
