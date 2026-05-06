@@ -19,7 +19,8 @@
       "Bash(grep \"src/.*\\\\.\\\\\\(cpp\\\\|h\\\\\\)$\")",
       "Bash(xargs -I {} git grep -n -i \"bitcoin\" {})",
       "Bash(grep \"^src/.*\\\\.\\\\\\(cpp\\\\|h\\\\\\)$\")",
-      "Read(//tmp/**)"
+      "Read(//tmp/**)",
+      "Bash(python *)"
     ]
   }
 }
