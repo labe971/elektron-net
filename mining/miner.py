@@ -85,7 +85,7 @@ def _bech32_decode(bech):
         return None, None
     if _bech32_verify_checksum(hrp, data) < 0:
         return None, None
-    decoded = _bech32_convert_bits(data[:-6], 5, 8, False)
+    decoded = _bech32_convert_bits(data[:-6], 5, 8, True)
     return hrp, decoded
 
 
