@@ -231,7 +231,15 @@ def _build_coinbase_tx(template, script_pubkey):
         # Insert witness before the final 4-byte locktime
         tx = tx[:-4] + witness + tx[-4:]
 
-    return tx
+    # Also return the NON-WITNESS serialization for txid calculation
+    tx_no_witness = struct.pack('<i', 2)
+    tx_no_witness += _write_compact_size(1)
+    tx_no_witness += inputs
+    tx_no_witness += _write_compact_size(output_count)
+    tx_no_witness += outputs
+    tx_no_witness += struct.pack('<I', height - 1)
+
+    return tx, tx_no_witness
 
 
 def _double_sha256(data):
@@ -261,9 +269,9 @@ def _build_block_header(template, nonce, merkle_root):
     return version + prev_block + merkle_root + ts + bits + nonce_bytes
 
 
-def _assemble_block(template, nonce, coinbase_tx, transactions):
+def _assemble_block(template, nonce, coinbase_tx, coinbase_txid, transactions):
     """Serialize a complete block from template + solved coinbase + transactions."""
-    tx_hashes = [_double_sha256(coinbase_tx)]
+    tx_hashes = [coinbase_txid]
     tx_hashes += [bytes.fromhex(tx['txid'])[::-1] for tx in transactions]
     merkle_root = _compute_merkle_root(tx_hashes)
 
@@ -325,9 +333,9 @@ def _mine_worker(tid, header, target, start_nonce, stop_event, result):
             print(f"  [thread {tid}] tried {nonce:,} nonces...")
 
 
-def mine_block(template, num_threads, coinbase_tx, transactions):
+def mine_block(template, num_threads, coinbase_txid, transactions):
     merkle_root = _compute_merkle_root(
-        [_double_sha256(coinbase_tx)] + [bytes.fromhex(tx['txid'])[::-1] for tx in transactions]
+        [coinbase_txid] + [bytes.fromhex(tx['txid'])[::-1] for tx in transactions]
     )
     header = _build_block_header(template, 0, merkle_root)
     target = _bits_to_target(int(template['bits'], 16))
@@ -356,8 +364,8 @@ def mine_block(template, num_threads, coinbase_tx, transactions):
     return None
 
 
-def submit_block(rpc, template, nonce, coinbase_tx, transactions):
-    block = _assemble_block(template, nonce, coinbase_tx, transactions)
+def submit_block(rpc, template, nonce, coinbase_tx, coinbase_txid, transactions):
+    block = _assemble_block(template, nonce, coinbase_tx, coinbase_txid, transactions)
     block_hex = block.hex()
 
     # Local sanity check: verify the block hash
@@ -436,11 +444,12 @@ def main():
             continue
 
         transactions = template.get('transactions', [])
-        coinbase_tx = _build_coinbase_tx(template, script_pubkey)
+        coinbase_tx, coinbase_tx_no_witness = _build_coinbase_tx(template, script_pubkey)
+        coinbase_txid = _double_sha256(coinbase_tx_no_witness)
 
-        nonce = mine_block(template, args.threads, coinbase_tx, transactions)
+        nonce = mine_block(template, args.threads, coinbase_txid, transactions)
         if nonce is not None:
-            submit_block(rpc, template, nonce, coinbase_tx, transactions)
+            submit_block(rpc, template, nonce, coinbase_tx, coinbase_txid, transactions)
         else:
             print("No nonce found (template expired?).")
 
