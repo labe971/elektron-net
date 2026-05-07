@@ -1,4 +1,4 @@
-# Elektron Net 2.0 — Protocol Whitepaper
+# Elektron Net — Whitepaper
 **Version 3.0 | Author: Ali Kutlusoy | Graz, Austria, 2026**
 
 ---
