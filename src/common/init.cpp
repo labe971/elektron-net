@@ -66,7 +66,7 @@ std::optional<ConfigError> InitConfig(ArgsManager& args, SettingsAbortFn setting
         // Elektron Net: create a default bitcoin.conf on first launch
         const fs::path base_config_path = base_path / BITCOIN_CONF_FILENAME;
         if (!fs::exists(base_config_path)) {
-            std::ofstream conf_file(base_config_path);
+            std::ofstream conf_file(fs::PathToString(base_config_path));
             if (conf_file.is_open()) {
                 conf_file << "# ============================================\n"
                           << "# Elektron Net Configuration File\n"
