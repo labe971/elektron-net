@@ -107,8 +107,8 @@ All settings can be placed in `config.json` in the same directory as the miner.
   "mining": {
     "address": "be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y",
     "threads": 4,
-    "target_spacing": 60,
-    "continuous": true
+    "continuous": true,
+    "target_spacing": 60
   },
   "pool": {
     "enabled": false,
@@ -128,6 +128,7 @@ All settings can be placed in `config.json` in the same directory as the miner.
 | `rpc` | `password` | string | `"password"` | RPC password. |
 | `mining` | `address` | string | `""` | **Payout address** (bech32 or base58). **Required.** |
 | `mining` | `threads` | integer | `4` | Number of CPU threads for mining. |
+| `mining` | `continuous` | boolean | `false` | Mine continuously in a loop. |
 | `mining` | `target_spacing` | integer | `60` | Block target spacing in seconds (informational only). |
 | `pool` | `enabled` | boolean | `false` | Enable Stratum pool mining (C++ miner only). |
 | `pool` | `url` | string | `"stratum+tcp://..."` | Stratum pool URL. |
@@ -147,12 +148,12 @@ All settings can be placed in `config.json` in the same directory as the miner.
 
 | Argument | Default | Description |
 |----------|---------|-------------|
-| `--url` | from `config.json` or `http://127.0.0.1:8332` | RPC endpoint URL. |
-| `--user` | from `config.json` or `"user"` | RPC username. |
-| `--password` | from `config.json` or `"password"` | RPC password. |
+| `--url` | from `config.json` or `http://127.0.0.1:8332` | RPC endpoint URL. Overrides config. |
+| `--user` | from `config.json` or `"user"` | RPC username. Overrides config. |
+| `--password` | from `config.json` or `"password"` | RPC password. Overrides config. |
 | `--address` | from `config.json` or `""` | **Payout address** (bech32 or base58). Overrides config. |
-| `--threads` | from `config.json` or `4` | Number of mining threads. |
-| `--continuous` | disabled | Mine continuously in a loop (non-stop). |
+| `--threads` | from `config.json` or `4` | Number of mining threads. Overrides config. |
+| `--continuous` | from `config.json` or `false` | Mine continuously in a loop (non-stop). Overrides config. |
 
 ### Usage Examples
 
@@ -163,7 +164,7 @@ python3 miner.py
 # Specify payout address directly (overrides config.json)
 python3 miner.py --address be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y
 
-# Custom RPC credentials + address
+# Custom RPC credentials + address + continuous mining
 python3 miner.py --url http://127.0.0.1:8332 --user elek --password secret \
                  --address be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y \
                  --threads 8 --continuous
