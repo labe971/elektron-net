@@ -33,16 +33,19 @@ On **Windows** the file belongs in:
 Minimal configuration for local solo-mining:
 
 ```ini
-# Activate RPC server
+# Add Master Seed Node
+addnode=seed.elektron-net.org:8333
+
+# RPC-Server
 server=1
 
-# RPC access (local only)
+# RPC (only local)
 rpcuser=elek
 rpcpassword=pass
 rpcbind=127.0.0.1
 rpcallowip=127.0.0.1
 
-# Optional: allow incoming P2P connections
+# Allow inbound P2P connections
 listen=1
 ```
 
