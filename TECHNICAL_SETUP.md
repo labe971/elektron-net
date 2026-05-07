@@ -49,7 +49,7 @@ For detailed Windows build instructions (tool installation, Visual Studio 2026 s
 
 > **vcpkg root:** If using the Visual Studio bundled vcpkg, ensure the environment variable is set:
 > ```powershell
-> $env:VCPKG_ROOT = "C:\Program Files\Microsoft Visual Studio\18\Community\VC\vcpkg"
+> $env:VCPKG_ROOT = "C:\Program Files\Microsoft Visual Studio\2022\Community\VC\vcpkg"
 > ```
 
 ---
@@ -60,7 +60,7 @@ For detailed Windows build instructions (tool installation, Visual Studio 2026 s
 > The official Elektron Net repository already contains a finalized genesis block.
 > Skip to [Section 5](#5-building-the-node) if you just want to build and run the node.
 
-The genesis block reward of **5 ELEK** (500,000,000 lep) must go to a public key you control.
+The genesis block reward of **5 ELEK** (500,000,000 lepton) must go to a public key you control.
 
 ### Step 2a — Generate a fresh keypair
 
@@ -160,14 +160,16 @@ and the `assert(...)` lines contain the real genesis hashes and merkle roots.
 If you are forking the project and generated your own genesis block, open
 `genesis_results.txt`. It contains four ready-to-paste C++ blocks.
 
-Open `src/kernel/chainparams.cpp` and replace the commented-out sections:
+Open `src/kernel/chainparams.cpp` and replace the commented-out sections inside
+each network class constructor:
 
-| Network | Search for | Replace with block from `genesis_results.txt` |
-|---------|------------|-----------------------------------------------|
-| Mainnet | `CreateGenesisBlock(...` around line 123 | Mainnet block |
-| Testnet3 | `CreateGenesisBlock(...` around line 235 | Testnet3 block |
-| Testnet4 | `CreateGenesisBlock(...` around line 338 | Testnet4 block |
-| Signet | `CreateGenesisBlock(...` around line 475 | Signet block |
+| Network | Search for |
+|---------|------------|
+| Mainnet | `CMainParams` constructor (around line 123) |
+| Testnet3 | `CTestNetParams` constructor (around line 208) |
+| Testnet4 | `CTestNet4Params` constructor (around line 291) |
+| Signet | `SigNetParams` constructor (around line 412) |
+| Regtest | `CRegTestParams` constructor (around line 510) |
 
 **Also uncomment** the two `assert(...)` lines below each `CreateGenesisBlock` call.
 
@@ -211,20 +213,17 @@ Open **"Developer PowerShell for VS 2026"** (installed with Visual Studio) and r
 # 1. Navigate into the repository
 cd C:\Path\To\elektron-net
 
-# 2. Create the build directory (only once)
-mkdir build
-
-# 3. Configure with the static preset (includes GUI wallet by default)
+# 2. Configure with the static preset (includes GUI wallet by default)
 cmake -B build --preset vs2026-static
 
-# 4. Compile Release binaries
+# 3. Compile Release binaries
 cmake --build build --config Release -j 4
 
-# 5. (Optional) Run tests
+# 4. (Optional) Run tests
 ctest --test-dir build --build-config Release -j 4
 ```
 
-> **If you do NOT want the GUI**, replace step 3 with:  
+> **If you do NOT want the GUI**, replace step 2 with:  
 > `cmake -B build --preset vs2026 -DBUILD_GUI=OFF`
 
 > **If vcpkg fails with "path too long"**, add:  
@@ -302,14 +301,14 @@ Für MSYS2 oder manuelle CMake-Aufrufe musst du die GUI explizit einschalten:
 cmake -G "MinGW Makefiles" .. -DBUILD_GUI=ON
 ```
 
-> **Hinweis:** Die GUI-Executable heißt jetzt `elektron-qt.exe` (bzw. `elektron-gui.exe` bei IPC-Build).
+> **Hinweis:** Die GUI-Executable heißt `elektron-qt.exe`.
 
 ### Build directory quick reference
 
 | OS | Create build dir | Configure | Compile |
 |----|-------------------|-----------|---------|
 | Linux/macOS | `mkdir build && cd build` | `cmake ..` | `cmake --build . -j$(nproc)` |
-| Windows (MSVC) | `mkdir build` | `cmake -B build --preset vs2026-static` | `cmake --build build --config Release` |
+| Windows (MSVC) | auto-created by `cmake -B` | `cmake -B build --preset vs2026-static` | `cmake --build build --config Release` |
 | Windows (MSYS2) | `mkdir build && cd build` | `cmake -G "MinGW Makefiles" ..` | `cmake --build .` |
 
 ---
@@ -398,56 +397,62 @@ The source code already references `seed.elektron-net.org.` in `src/kernel/chain
 
 ### Create a data directory and config
 
+> **Important:** This codebase is a fork of Bitcoin Core. The configuration file **must** be named `bitcoin.conf` (not `elektron.conf`), and the default data directory is still `Bitcoin`.
+
 **Linux / macOS:**
 ```bash
-mkdir -p ~/.elektron
+mkdir -p ~/.bitcoin
 ```
-Create `~/.elektron/elektron.conf`
+Create `~/.bitcoin/bitcoin.conf`
 
 **Windows:**
 ```powershell
 # PowerShell
-$datadir = "$env:APPDATA\Elektron"
+$datadir = "$env:APPDATA\Bitcoin"
 New-Item -ItemType Directory -Force -Path $datadir
 ```
-Create `%APPDATA%\Elektron\elektron.conf`  
-(You can open the folder quickly with: `explorer %APPDATA%\Elektron`)
+Create `%APPDATA%\Bitcoin\bitcoin.conf`  
+(You can open the folder quickly with: `explorer %APPDATA%\Bitcoin`)
 
-#### Example `elektron.conf`
+> On fresh Windows installs the datadir may be created under `%LOCALAPPDATA%\Bitcoin` instead of `%APPDATA%\Bitcoin`. Check the node log on first startup to see which path is actually used.
+
+#### Example `bitcoin.conf`
 
 ```ini
 # RPC settings
 rpcuser=elek
 rpcpassword=ChangeThisStrongPassword123
 rpcbind=127.0.0.1
-rpcallowip=127.0.0.1/32
+rpcallowip=127.0.0.1
 
 # Server
 server=1
 listen=1
 
-# Optional: prune (automatic after 137 days / 197,280 blocks)
-prune=1
+# Optional: enable UPnP port forwarding (automatically opens P2P port 8333 on supported routers)
+upnp=1
 
-# Optional: mining address
-# mineaddress=be1q...
+# Optional: prune old blocks (mandatory after 197,280 blocks / ~137 days)
+prune=1
 ```
+
+> **Security warning:** `rpcallowip` should **never** point to the public internet. The RPC port (8332) must stay local or behind a VPN/Tunnel.
 
 ### Start the daemon
 
 **Linux / macOS:**
 ```bash
-./src/elektrond -datadir=$HOME/.elektron -printtoconsole
+./src/elektrond -datadir=$HOME/.bitcoin -printtoconsole
 ```
 
 **Windows (PowerShell — from inside the `build` directory):**
 ```powershell
-.\src\Release\elektrond.exe -datadir="$env:APPDATA\Elektron" -printtoconsole
+.\src\Release\elektrond.exe -datadir="$env:APPDATA\Bitcoin" -printtoconsole
 ```
 
 **Windows (MSYS2 — from inside the `build` directory):**
 ```bash
-./src/elektrond.exe -datadir=$APPDATA/Elektron -printtoconsole
+./src/elektrond.exe -datadir=$APPDATA/Bitcoin -printtoconsole
 ```
 
 You should see:
@@ -464,17 +469,17 @@ contains the correct values.
 
 **Linux / macOS:**
 ```bash
-./src/elektron-cli -datadir=$HOME/.elektron getblockchaininfo
+./src/elektron-cli -datadir=$HOME/.bitcoin getblockchaininfo
 ```
 
 **Windows (PowerShell):**
 ```powershell
-.\src\Release\elektron-cli.exe -datadir="$env:APPDATA\Elektron" getblockchaininfo
+.\src\Release\elektron-cli.exe -datadir="$env:APPDATA\Bitcoin" getblockchaininfo
 ```
 
 **Windows (MSYS2):**
 ```bash
-./src/elektron-cli.exe -datadir=$APPDATA/Elektron getblockchaininfo
+./src/elektron-cli.exe -datadir=$APPDATA/Bitcoin getblockchaininfo
 ```
 
 Expected output: `blocks: 0`, `chain: main`, `difficulty: ...`
@@ -500,17 +505,7 @@ cd mining
 python3 miner.py --url http://127.0.0.1:8332 --user elek --password ChangeThisStrongPassword123 --threads 4 --continuous
 ```
 
-### Method C — Standalone C++ miner
-
-```bash
-cd mining
-mkdir build && cd build
-cmake ..
-cmake --build .
-./elektron_miner ../config.json
-```
-
-Edit `config.json` before running:
+You can also set these values in `config.json` so you only need to run `python3 miner.py`:
 
 ```json
 {
@@ -522,6 +517,7 @@ Edit `config.json` before running:
   "mining": {
     "address": "be1q...your-mining-address...",
     "threads": 4,
+    "continuous": true,
     "target_spacing": 60
   },
   "pool": {
@@ -531,6 +527,16 @@ Edit `config.json` before running:
     "password": "x"
   }
 }
+```
+
+### Method C — Standalone C++ miner
+
+```bash
+cd mining
+mkdir build && cd build
+cmake ..
+cmake --build .
+./elektron_miner ../config.json
 ```
 
 ### Difficulty adjustment
@@ -548,10 +554,13 @@ Difficulty retargets every **2,016 blocks** (roughly 1.4 days at 60-second spaci
 | Block time target | 60 seconds |
 | Halving interval | 2,102,400 blocks (~4 years) |
 | Total supply | 21,000,000 ELEK |
-| Smallest unit | lep (1 ELEK = 100,000,000 lep) |
+| Smallest unit | lepton (1 ELEK = 100,000,000 lepton) |
 | Genesis reward | 5 ELEK |
 | Initial difficulty | `0x1d7fffff` (CPU-friendly) |
 | Pow limit | `007fffff00000000000000000000000000000000000000000000000000000000` |
+| Difficulty retarget | 2,016 blocks |
+| Mandatory prune depth | 197,280 blocks (~137 days) |
+| `MIN_BLOCKS_TO_KEEP` | 2,880 (~2 days) |
 
 ### Ports
 
@@ -584,11 +593,7 @@ Difficulty retargets every **2,016 blocks** (roughly 1.4 days at 60-second spaci
 
 ### Pruning
 
-| Parameter | Value |
-|-----------|-------|
-| Mandatory prune depth | 197,280 blocks |
-| Wall-clock retention | ~137 days |
-| `MIN_BLOCKS_TO_KEEP` | 2,880 (~2 days) |
+Elektron Net has **mandatory pruning**: transaction history older than 197,280 blocks (~137 days) is automatically discarded. You can optionally enable earlier pruning with `prune=1` in `bitcoin.conf`.
 
 ### Genesis message
 
@@ -596,26 +601,20 @@ Difficulty retargets every **2,016 blocks** (roughly 1.4 days at 60-second spaci
 Mathematics secures your money. Time erases your traces. You own the moment.
 ```
 
-### Genesis pubkey (example only)
+### Genesis pubkey
 
-The following is a **placeholder example**. The real genesis public key used
-for the official network is embedded in `mining/mine_genesis.py` and is **not**
-published in documentation.
-
-```
-0417256d59a30a1849f1fbbbc507e1c5dabb91140de37b0860b86c778cf8403ad
-3a70317000e6212f41fcc50b2f05f607454d1206eac580ddfde351c5578479de3
-```
+The genesis public key is embedded in `mining/mine_genesis.py` (`GENESIS_PUBKEY_HEX`).
+**Do not commit `genesis_results.txt`** — it contains the matching private key.
 
 ---
 
 ## Quick Checklist
 
-- [ ] Generate genesis wallet (`generate_address.py`)
-- [ ] Update `GENESIS_PUBKEY_HEX` in `mine_genesis.py`
-- [ ] Run `mine_genesis.py` and paste results into `chainparams.cpp`
+- [ ] Generate genesis wallet (`generate_address.py`) — only for new forks
+- [ ] Update `GENESIS_PUBKEY_HEX` in `mine_genesis.py` — only for new forks
+- [ ] Run `mine_genesis.py` and paste results into `chainparams.cpp` — only for new forks
 - [ ] Build the node (`cmake --build .`)
-- [ ] Create `elektron.conf` with RPC credentials
+- [ ] Create `bitcoin.conf` with RPC credentials (in `%APPDATA%\Bitcoin` or `~/.bitcoin`)
 - [ ] Set up DNS seed (`seed.elektron-net.org`)
 - [ ] Start `elektrond`
 - [ ] Verify with `elektron-cli getblockchaininfo`
@@ -623,5 +622,4 @@ published in documentation.
 
 ---
 
-*For the standalone genesis mining guide only, see [mining/GENESIS.md](mining/GENESIS.md).*
-*For standalone mining software docs, see [mining/README.md](mining/README.md).*
+*For the standalone mining software docs, see [mining/README.md](mining/README.md).*
