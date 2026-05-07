@@ -161,8 +161,13 @@ def _write_compact_size(n):
 
 
 def _script_num(n):
+    """Serialize a number exactly like CScript::push_int64 in Bitcoin Core."""
+    if n == -1:
+        return bytes([0x4f])          # OP_1NEGATE
     if n == 0:
-        return bytes([0])
+        return bytes([0x00])          # OP_0
+    if 1 <= n <= 16:
+        return bytes([0x50 + n])      # OP_1 .. OP_16
     neg = n < 0
     n = abs(n)
     result = []
@@ -187,6 +192,12 @@ def _build_coinbase_tx(template, script_pubkey):
     # NOTE: Elektron Net uses ONLY the height in scriptSig prefix (no extra tag).
     # The node appends any coinbaseaux data itself in GenerateCoinbaseCommitment().
     script_sig = _script_num(height)
+
+    # For blocks at heights <= 16, the BIP34-encoded height alone is only
+    # one byte. Consensus requires coinbase scriptSigs to be at least two
+    # bytes long (bad-cb-length), so we pad with a dummy OP_0.
+    if len(script_sig) < 2:
+        script_sig += bytes([0x00])  # OP_0
 
     # --- inputs ---
     inputs = (bytes(32) +                          # prevout.hash (null)
@@ -413,7 +424,9 @@ def main():
                         help='Payout address (bech32/base58). Overrides config.json.')
     parser.add_argument('--threads', type=int, default=config['mining'].get('threads', 4),
                         help='Number of mining threads')
-    parser.add_argument('--continuous', action='store_true', help='Mine continuously')
+    parser.add_argument('--continuous', action='store_true',
+                        default=config['mining'].get('continuous', False),
+                        help='Mine continuously')
     args = parser.parse_args()
 
     if not args.address:
