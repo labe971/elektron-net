@@ -107,7 +107,8 @@ All settings can be placed in `config.json` in the same directory as the miner.
   "mining": {
     "address": "be1qccy42avfqnw2wxf8c790w3nqtj0vwtmmc0uz6y",
     "threads": 4,
-    "target_spacing": 60
+    "target_spacing": 60,
+    "continuous": true
   },
   "pool": {
     "enabled": false,
