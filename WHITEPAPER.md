@@ -5,7 +5,7 @@
 
 ## Abstract
 
-Elektron Net 2.0 is a minimal, focused fork of Bitcoin Core. It preserves Bitcoin's proven proof-of-work consensus, emission schedule, and network architecture in their entirety. Two deliberate protocol changes are introduced:
+Elektron Net is a minimal, focused fork of Bitcoin Core. It preserves Bitcoin's proven proof-of-work consensus, emission schedule, and network architecture in their entirety. Two deliberate protocol changes are introduced:
 
 1. **Block time reduced to 60 seconds** — faster confirmation latency without altering the economic model.
 2. **Mandatory 137-day pruning** — transaction history is mathematically erased after α⁻¹ days, leaving only headers, checkpoints, and the current UTXO set.
