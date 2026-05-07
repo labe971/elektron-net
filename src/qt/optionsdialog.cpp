@@ -104,6 +104,10 @@ OptionsDialog::OptionsDialog(QWidget* parent, bool enableWallet)
     ui->pruneSize->setEnabled(false);
     connect(ui->prune, &QPushButton::toggled, ui->pruneSize, &QWidget::setEnabled);
 
+    // Elektron Net: pruning is mandatory — user cannot disable it.
+    ui->prune->setChecked(true);
+    ui->prune->setEnabled(false);
+
     /* Network elements init */
     ui->proxyIp->setEnabled(false);
     ui->proxyPort->setEnabled(false);

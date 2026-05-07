@@ -1004,14 +1004,13 @@ bool AppInitParameterInteraction(const ArgsManager& args)
         g_local_services = ServiceFlags(g_local_services | NODE_COMPACT_FILTERS);
     }
 
-    if (args.GetIntArg("-prune", 0)) {
-        if (args.GetBoolArg("-txindex", DEFAULT_TXINDEX))
-            return InitError(_("Prune mode is incompatible with -txindex."));
-        if (args.GetBoolArg("-txospenderindex", DEFAULT_TXOSPENDERINDEX))
-            return InitError(_("Prune mode is incompatible with -txospenderindex."));
-        if (args.GetBoolArg("-reindex-chainstate", false)) {
-            return InitError(_("Prune mode is incompatible with -reindex-chainstate. Use full -reindex instead."));
-        }
+    // Elektron Net: pruning is mandatory — always check incompatibilities regardless of -prune argument.
+    if (args.GetBoolArg("-txindex", DEFAULT_TXINDEX))
+        return InitError(_("Prune mode is incompatible with -txindex."));
+    if (args.GetBoolArg("-txospenderindex", DEFAULT_TXOSPENDERINDEX))
+        return InitError(_("Prune mode is incompatible with -txospenderindex."));
+    if (args.GetBoolArg("-reindex-chainstate", false)) {
+        return InitError(_("Prune mode is incompatible with -reindex-chainstate. Use full -reindex instead."));
     }
 
     // If -forcednsseed is set to true, ensure -dnsseed has not been set to false

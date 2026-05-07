@@ -300,6 +300,48 @@ BOOST_AUTO_TEST_CASE(blockmanager_flush_block_file)
     BOOST_CHECK_EQUAL(read_block.nVersion, 2);
 }
 
+BOOST_FIXTURE_TEST_CASE(blockmanager_mandatory_prune_depth, TestChain100Setup)
+{
+    LOCK(::cs_main);
+    auto& chainman = *Assert(m_node.chainman);
+    auto& chainstate = chainman.ActiveChainstate();
+    CChain& chain = chainman.ActiveChain();
+
+    // Verify the mandatory prune depth constant (137 days at 60s block time)
+    BOOST_CHECK_EQUAL(MANDATORY_PRUNE_DEPTH, 197280U);
+
+    CBlockIndex* original_tip = chain.Tip();
+    BOOST_REQUIRE(original_tip != nullptr);
+
+    // Create a fake tip at height 200,000 linked back to the real tip.
+    // This lets us test GetPruneRange without mining 200k blocks.
+    auto fake_hash = std::make_unique<uint256>();
+    auto fake_tip = std::make_unique<CBlockIndex>();
+    fake_tip->nHeight = 200000;
+    fake_tip->pprev = original_tip;
+    fake_tip->phashBlock = fake_hash.get();
+
+    chain.SetTip(*fake_tip);
+
+    // At height 200,000: max_prune = 200000 - 197280 = 2720
+    auto [prune_start, prune_end] = chainstate.GetPruneRange(INT_MAX);
+    BOOST_CHECK_EQUAL(prune_start, 0);
+    BOOST_CHECK_EQUAL(prune_end, 2720);
+
+    // A large caller-specified limit is still capped by MANDATORY_PRUNE_DEPTH
+    auto [start2, end2] = chainstate.GetPruneRange(5000);
+    BOOST_CHECK_EQUAL(start2, 0);
+    BOOST_CHECK_EQUAL(end2, 2720);
+
+    // A smaller caller-specified limit is respected
+    auto [start3, end3] = chainstate.GetPruneRange(1000);
+    BOOST_CHECK_EQUAL(start3, 0);
+    BOOST_CHECK_EQUAL(end3, 1000);
+
+    // Restore original chain before fixture teardown
+    chain.SetTip(*original_tip);
+}
+
 BOOST_FIXTURE_TEST_CASE(prune_lock_update_and_delete, TestingSetup)
 {
     LOCK(::cs_main);
