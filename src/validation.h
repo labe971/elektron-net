@@ -92,6 +92,20 @@ static const uint64_t MIN_DISK_SPACE_FOR_BLOCK_FILES{550_MiB};
 /** Maximum number of dedicated script-checking threads allowed */
 static constexpr int MAX_SCRIPTCHECK_THREADS{15};
 
+/** Elektron Net: validate UTXO checkpoint embedded in a checkpoint block's coinbase.
+ *  Every MANDATORY_PRUNE_DEPTH blocks, the coinbase must contain an OP_RETURN
+ *  output with the serialized UTXO set hash computed after connecting the block.
+ */
+class CBlock;
+class CCoinsView;
+class BlockValidationState;
+bool ValidateUTXOCheckpoint(const CBlock& block, int nHeight, CCoinsView& view, node::BlockManager& blockman, BlockValidationState& state);
+
+/** Elektron Net: automatically write a UTXO snapshot to disk after a checkpoint block
+ *  is successfully connected. This snapshot can be used by new nodes for bootstrap.
+ */
+void WriteAutomaticSnapshot(Chainstate& chainstate, int nHeight, const CBlockIndex* pindex, bool force = false);
+
 /** Current sync state passed to tip changed callbacks. */
 enum class SynchronizationState {
     INIT_REINDEX,

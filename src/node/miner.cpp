@@ -15,6 +15,7 @@
 #include <consensus/tx_verify.h>
 #include <consensus/validation.h>
 #include <deploymentstatus.h>
+#include <kernel/coinstats.h>
 #include <logging.h>
 #include <node/context.h>
 #include <node/kernel_notifications.h>
@@ -198,6 +199,26 @@ std::unique_ptr<CBlockTemplate> BlockAssembler::CreateNewBlock()
 
     pblock->vtx[0] = MakeTransactionRef(std::move(coinbaseTx));
     m_chainstate.m_chainman.GenerateCoinbaseCommitment(*pblock, pindexPrev);
+
+    // Elektron Net: every MANDATORY_PRUNE_DEPTH blocks, embed the UTXO set hash in the coinbase.
+    // This creates an automatic on-chain checkpoint that new nodes can use for snapshot bootstrapping.
+    if (nHeight > 0 && nHeight % MANDATORY_PRUNE_DEPTH == 0) {
+        const auto stats = kernel::ComputeUTXOStats(
+            kernel::CoinStatsHashType::HASH_SERIALIZED,
+            &m_chainstate.CoinsDB(),
+            m_chainstate.m_chainman.m_blockman);
+        if (stats) {
+            CMutableTransaction tx(*pblock->vtx[0]);
+            CTxOut out;
+            out.nValue = 0;
+            // OP_RETURN <height(4 bytes)> <hash(32 bytes)> = 37 bytes payload
+            out.scriptPubKey = CScript() << OP_RETURN << nHeight << stats->hashSerialized;
+            tx.vout.push_back(out);
+            pblock->vtx[0] = MakeTransactionRef(std::move(tx));
+            LogInfo("CreateNewBlock(): added UTXO checkpoint at height %d, hash=%s\n",
+                    nHeight, stats->hashSerialized.ToString());
+        }
+    }
 
     const CTransactionRef& final_coinbase{pblock->vtx[0]};
     if (final_coinbase->HasWitness()) {

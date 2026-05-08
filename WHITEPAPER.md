@@ -167,20 +167,42 @@ The 137-day window enforces the **right to be forgotten** as a protocol invarian
 | | Input/output scripts and amounts |
 | **Never stored** | User identity, IP mappings, transaction graphs |
 
-### 4.3 Checkpoint Trust Model
+### 4.3 Automatic UTXO Checkpoint Mechanism
 
-After 137 days, history is gone. New nodes need a way to trust the UTXO set.
+After 137 days, history is gone. New nodes need a way to trust the UTXO set without downloading 197,280 blocks that no peer retains.
 
-**Checkpoints:**
-- Produced every 137 days (197,280 blocks at 60s).
-- Contains: block height + UTXO Merkle root.
-- Signed by a threshold of recent miners (adapted from Bitcoin Core assumevalid logic).
+**On-Chain UTXO Checkpoints:**
+- Produced automatically every 137 days (197,280 blocks at 60s).
+- Embedded in the coinbase transaction of the checkpoint block as an `OP_RETURN` output.
+- Format: `OP_RETURN <height(4 bytes)> <UTXO set hash(32 bytes)>`.
+- The hash is `HASH_SERIALIZED` of the UTXO set computed *after* the checkpoint block is connected.
+- Every full node validates the checkpoint hash during block connection. If the embedded hash does not match the computed UTXO set hash, the block is rejected.
+- This makes checkpoints a consensus rule, not a trust assumption.
+
+**Automatic Snapshot Creation:**
+- When a checkpoint block is accepted, every node automatically writes a UTXO snapshot to disk (`<datadir>/snapshots/<height>-<hash>.dat`).
+- The snapshot uses Bitcoin Core's existing AssumeUTXO serialization format (metadata + coins).
+- Snapshots are preserved even when block files are pruned.
+
+**P2P Snapshot Transfer:**
+- New nodes advertise `NODE_NETWORK_LIMITED` because no node stores blocks older than 137 days.
+- Messages:
+  - `getutxosnapshot` — request snapshot metadata for a checkpoint block hash.
+  - `utxosnapshot` — response with checkpoint height, block hash, and UTXO set hash.
+  - `getsnapshotdata` — request a chunk of snapshot file data (offset + length).
+  - `snapshotdata` — response with the requested file chunk.
+- This allows new nodes to download the UTXO snapshot directly from peers, chunk by chunk, without relying on external file distribution.
 
 **Bootstrap for a new node:**
-1. Download genesis header.
-2. Download latest checkpoint; verify UTXO root.
-3. Download UTXO set from multiple peers; compare root.
-4. If roots match: chain state is verified. No full sync of 137+ days of transactions required.
+1. Sync headers from any peer (headers are permanent and tiny).
+2. Identify the most recent checkpoint block in the headers chain.
+3. Request `getutxosnapshot` from peers to discover which checkpoint hash is available.
+4. Download the snapshot file via `getsnapshotdata` / `snapshotdata` chunks.
+5. Validate the downloaded snapshot hash against the checkpoint embedded in the coinbase.
+6. Load the snapshot via the existing AssumeUTXO infrastructure (`ActivateSnapshot`).
+7. Sync the remaining blocks from the checkpoint to the current tip (at most 197,280 blocks, always available from `NODE_NETWORK_LIMITED` peers).
+
+No trusted third party. No manual file download. No full historical sync. The entire bootstrap is peer-to-peer and cryptographically verified against the on-chain checkpoint.
 
 ### 4.4 Storage Projection
 

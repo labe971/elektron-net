@@ -60,6 +60,7 @@
 #include <node/mempool_persist_args.h>
 #include <node/miner.h>
 #include <node/peerman_args.h>
+#include <node/utxo_snapshot.h>
 #include <policy/feerate.h>
 #include <policy/fees/block_policy_estimator.h>
 #include <policy/fees/block_policy_estimator_args.h>
@@ -72,6 +73,7 @@
 #include <rpc/util.h>
 #include <scheduler.h>
 #include <script/sigcache.h>
+#include <streams.h>
 #include <sync.h>
 #include <torcontrol.h>
 #include <txdb.h>
@@ -1423,6 +1425,73 @@ static ChainstateLoadResult InitAndLoadChainstate(
     return {status, error};
 };
 
+/**
+ * Elektron Net: check for a completed automatic snapshot download and activate it.
+ * This is called periodically by the scheduler and once at startup.
+ */
+static void MaybeActivateAutomaticSnapshot(NodeContext& node)
+{
+    if (!node.chainman) return;
+    ChainstateManager& chainman = *node.chainman;
+
+    const fs::path snapshot_dir = chainman.m_options.datadir / "snapshots";
+    if (!fs::exists(snapshot_dir)) return;
+
+    // Look for completed snapshot files (not .download temp files)
+    std::optional<fs::path> snapshot_path;
+    for (const auto& entry : fs::directory_iterator(snapshot_dir)) {
+        const std::string fname = entry.path().filename().string();
+        if (fname.ends_with(".dat") && !fname.ends_with(".download")) {
+            snapshot_path = entry.path();
+            break;
+        }
+    }
+    if (!snapshot_path) return;
+
+    // Check if a snapshot chainstate already exists
+    {
+        LOCK(::cs_main);
+        if (chainman.CurrentChainstate().m_from_snapshot_blockhash) {
+            return;
+        }
+    }
+
+    LogInfo("[snapshot] Found automatic snapshot file: %s, attempting activation...\n",
+            fs::PathToString(*snapshot_path));
+
+    FILE* file{fsbridge::fopen(*snapshot_path, "rb")};
+    AutoFile afile{file};
+    if (afile.IsNull()) {
+        LogWarning("[snapshot] Could not open snapshot file for reading: %s\n",
+                   fs::PathToString(*snapshot_path));
+        return;
+    }
+
+    node::SnapshotMetadata metadata{chainman.GetParams().MessageStart()};
+    try {
+        afile >> metadata;
+    } catch (const std::ios_base::failure& e) {
+        LogWarning("[snapshot] Unable to parse snapshot metadata: %s\n", e.what());
+        return;
+    }
+
+    auto activation_result = chainman.ActivateSnapshot(afile, metadata, false);
+    if (!activation_result) {
+        LogWarning("[snapshot] Failed to activate snapshot: %s\n",
+                   util::ErrorString(activation_result).original);
+        return;
+    }
+
+    LogInfo("[snapshot] Successfully activated snapshot at height %d, hash=%s\n",
+            (*activation_result)->nHeight, (*activation_result)->GetBlockHash().ToString());
+
+    // Update local services: we are now a limited peer until background sync completes
+    if (node.connman) {
+        node.connman->RemoveLocalServices(NODE_NETWORK);
+        node.connman->AddLocalServices(NODE_NETWORK_LIMITED);
+    }
+}
+
 bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
 {
     const ArgsManager& args = *Assert(node.args);
@@ -2328,6 +2397,15 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     }, DUMP_BANS_INTERVAL);
 
     if (node.peerman) node.peerman->StartScheduledTasks(scheduler);
+
+    // Elektron Net: start automatic snapshot activation task
+    // This periodically checks for downloaded snapshots and activates them
+    static constexpr auto SNAPSHOT_ACTIVATION_INTERVAL = std::chrono::seconds{30};
+    scheduler.scheduleEvery([&node]() {
+        MaybeActivateAutomaticSnapshot(node);
+    }, SNAPSHOT_ACTIVATION_INTERVAL);
+    // Also attempt activation once immediately at startup
+    MaybeActivateAutomaticSnapshot(node);
 
 #if HAVE_SYSTEM
     StartupNotify(args);

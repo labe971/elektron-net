@@ -43,6 +43,7 @@ add_executable(test_elektron
   denialofservice_tests.cpp
   descriptor_tests.cpp
   disconnected_transactions.cpp
+  elektron_simulation.cpp
   feefrac_tests.cpp
   feerounder_tests.cpp
   flatfile_tests.cpp

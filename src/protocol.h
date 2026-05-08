@@ -264,6 +264,26 @@ inline constexpr const char* WTXIDRELAY{"wtxidrelay"};
  * txreconciliation, as described by BIP 330.
  */
 inline constexpr const char* SENDTXRCNCL{"sendtxrcncl"};
+/**
+ * Elektron Net: request a UTXO snapshot from a peer.
+ * The payload is a uint256 block hash of the checkpoint block.
+ */
+inline constexpr const char* GETUTXOSNAPSHOT{"getutxosnapshot"};
+/**
+ * Elektron Net: response containing UTXO snapshot metadata.
+ * The payload is: int height, uint256 blockhash, uint256 utxo_hash.
+ */
+inline constexpr const char* UTXOSNAPSHOT{"utxosnapshot"};
+/**
+ * Elektron Net: request a chunk of snapshot data from a peer.
+ * The payload is: uint256 blockhash, uint64_t offset, uint32_t length.
+ */
+inline constexpr const char* GETSNAPSHOTDATA{"getsnapshotdata"};
+/**
+ * Elektron Net: response containing a chunk of snapshot data.
+ * The payload is: uint256 blockhash, uint64_t offset, vector<uint8_t> data.
+ */
+inline constexpr const char* SNAPSHOTDATA{"snapshotdata"};
 }; // namespace NetMsgType
 
 /** All known message types (see above). Keep this in the same order as the list of messages above. */
@@ -303,6 +323,10 @@ inline const std::array ALL_NET_MESSAGE_TYPES{std::to_array<std::string>({
     NetMsgType::CFCHECKPT,
     NetMsgType::WTXIDRELAY,
     NetMsgType::SENDTXRCNCL,
+    NetMsgType::GETUTXOSNAPSHOT,
+    NetMsgType::UTXOSNAPSHOT,
+    NetMsgType::GETSNAPSHOTDATA,
+    NetMsgType::SNAPSHOTDATA,
 })};
 
 /** nServices flags */

@@ -44,6 +44,7 @@
 #include <script/script.h>
 #include <script/sigcache.h>
 #include <signet.h>
+#include <streams.h>
 #include <tinyformat.h>
 #include <txdb.h>
 #include <txmempool.h>
@@ -2287,6 +2288,181 @@ script_verify_flags GetBlockScriptFlags(const CBlockIndex& block_index, const Ch
 }
 
 
+/**
+ * Validate the UTXO checkpoint embedded in a checkpoint block's coinbase.
+ * Every MANDATORY_PRUNE_DEPTH blocks, the coinbase must contain an OP_RETURN
+ * output with the serialized UTXO set hash computed after connecting the block.
+ */
+bool ValidateUTXOCheckpoint(const CBlock& block, int nHeight, CCoinsView& view, node::BlockManager& blockman, BlockValidationState& state)
+{
+    if (nHeight <= 0 || nHeight % MANDATORY_PRUNE_DEPTH != 0) {
+        return true; // Not a checkpoint block
+    }
+
+    const CTransaction& coinbase = *block.vtx[0];
+    for (const CTxOut& out : coinbase.vout) {
+        CScript::const_iterator pc = out.scriptPubKey.begin();
+        opcodetype opcode;
+        std::vector<unsigned char> data;
+
+        // Must start with OP_RETURN
+        if (!out.scriptPubKey.GetOp(pc, opcode, data) || opcode != OP_RETURN) {
+            continue;
+        }
+
+        // Next push: height (CScriptNum encoding)
+        if (!out.scriptPubKey.GetOp(pc, opcode, data)) continue;
+        int checkpoint_height;
+        if (opcode == OP_0) {
+            checkpoint_height = 0;
+        } else if (opcode >= OP_1 && opcode <= OP_16) {
+            checkpoint_height = opcode - (OP_1 - 1);
+        } else if (!data.empty()) {
+            try {
+                checkpoint_height = CScriptNum(data, true, 5).getint();
+            } catch (const scriptnum_error&) {
+                continue;
+            }
+        } else {
+            continue;
+        }
+
+        // Next push: hash (32 bytes)
+        if (!out.scriptPubKey.GetOp(pc, opcode, data)) continue;
+        if (data.size() != 32) continue;
+        uint256 checkpoint_hash;
+        memcpy(checkpoint_hash.begin(), data.data(), 32);
+
+        if (checkpoint_height == nHeight) {
+            auto stats = kernel::ComputeUTXOStats(
+                kernel::CoinStatsHashType::HASH_SERIALIZED,
+                &view, blockman);
+            if (!stats) {
+                state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-utxo-checkpoint-compute");
+                return false;
+            }
+            if (stats->hashSerialized != checkpoint_hash) {
+                state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "bad-utxo-checkpoint",
+                    strprintf("UTXO checkpoint mismatch at height %d: expected %s, got %s",
+                        nHeight, checkpoint_hash.ToString(), stats->hashSerialized.ToString()));
+                return false;
+            }
+            LogInfo("Validated UTXO checkpoint at height %d, hash=%s\n",
+                    nHeight, checkpoint_hash.ToString());
+            return true;
+        }
+    }
+
+    state.Invalid(BlockValidationResult::BLOCK_CONSENSUS, "missing-utxo-checkpoint",
+        strprintf("Missing UTXO checkpoint at height %d", nHeight));
+    return false;
+}
+
+/**
+ * Elektron Net: automatically write a UTXO snapshot to disk after a checkpoint block
+ * is successfully connected. This snapshot can be used by new nodes for bootstrap.
+ */
+void WriteAutomaticSnapshot(Chainstate& chainstate, int nHeight, const CBlockIndex* pindex, bool force)
+{
+    if (!force && (nHeight <= 0 || nHeight % MANDATORY_PRUNE_DEPTH != 0)) {
+        return; // Not a checkpoint block
+    }
+
+    const fs::path datadir = chainstate.m_chainman.m_options.datadir;
+    const fs::path snapshot_dir = datadir / "snapshots";
+    const std::string filename = strprintf("%d-%s.dat", nHeight, pindex->GetBlockHash().ToString());
+    const fs::path snapshot_path = snapshot_dir / filename;
+
+    if (fs::exists(snapshot_path)) {
+        LogDebug(BCLog::VALIDATION, "Snapshot already exists at %s, skipping.\n", fs::PathToString(snapshot_path));
+        return;
+    }
+
+    try {
+        fs::create_directories(snapshot_dir);
+    } catch (const fs::filesystem_error& e) {
+        LogWarning("Failed to create snapshot directory %s: %s\n", fs::PathToString(snapshot_dir), e.what());
+        return;
+    }
+
+    const fs::path temppath = snapshot_path + ".incomplete";
+    FILE* file{fsbridge::fopen(temppath, "wb")};
+    AutoFile afile{file};
+    if (afile.IsNull()) {
+        LogWarning("Failed to open snapshot file %s for writing.\n", fs::PathToString(temppath));
+        return;
+    }
+
+    LogInfo("[snapshot] Writing automatic UTXO snapshot at height %d to %s\n", nHeight, fs::PathToString(snapshot_path));
+
+    chainstate.ForceFlushStateToDisk(/*wipe_cache=*/false);
+
+    auto maybe_stats = kernel::ComputeUTXOStats(kernel::CoinStatsHashType::HASH_SERIALIZED, &chainstate.CoinsDB(), chainstate.m_blockman);
+    if (!maybe_stats) {
+        LogWarning("[snapshot] Unable to read UTXO stats for automatic snapshot at height %d\n", nHeight);
+        return;
+    }
+
+    node::SnapshotMetadata metadata{chainstate.m_chainman.GetParams().MessageStart(), pindex->GetBlockHash(), maybe_stats->coins_count};
+    afile << metadata;
+
+    auto pcursor = chainstate.CoinsDB().Cursor();
+    COutPoint key;
+    Txid last_hash;
+    Coin coin;
+    size_t written_coins_count{0};
+    std::vector<std::pair<uint32_t, Coin>> coins;
+
+    auto write_coins = [&](AutoFile& afile, const Txid& last_hash, const std::vector<std::pair<uint32_t, Coin>>& coins, size_t& written_coins_count) {
+        afile << last_hash;
+        WriteCompactSize(afile, coins.size());
+        for (const auto& [n, c] : coins) {
+            WriteCompactSize(afile, n);
+            afile << c;
+            ++written_coins_count;
+        }
+    };
+
+    pcursor->GetKey(key);
+    last_hash = key.hash;
+    while (pcursor->Valid()) {
+        if (pcursor->GetKey(key) && pcursor->GetValue(coin)) {
+            if (key.hash != last_hash) {
+                write_coins(afile, last_hash, coins, written_coins_count);
+                last_hash = key.hash;
+                coins.clear();
+            }
+            coins.emplace_back(key.n, coin);
+        }
+        pcursor->Next();
+    }
+
+    if (!coins.empty()) {
+        write_coins(afile, last_hash, coins, written_coins_count);
+    }
+
+    if (written_coins_count != maybe_stats->coins_count) {
+        LogWarning("[snapshot] Coin count mismatch in automatic snapshot: written=%d, expected=%d\n",
+                   written_coins_count, maybe_stats->coins_count);
+        return;
+    }
+
+    if (afile.fclose() != 0) {
+        LogWarning("[snapshot] Error closing snapshot file %s\n", fs::PathToString(temppath));
+        return;
+    }
+
+    try {
+        fs::rename(temppath, snapshot_path);
+    } catch (const fs::filesystem_error& e) {
+        LogWarning("[snapshot] Failed to rename snapshot file: %s\n", e.what());
+        return;
+    }
+
+    LogInfo("[snapshot] Automatic UTXO snapshot at height %d written successfully: %s (coins=%d, hash=%s)\n",
+            nHeight, fs::PathToString(snapshot_path), written_coins_count, maybe_stats->hashSerialized.ToString());
+}
+
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
  *  Validity checks that depend on the UTXO set are also done; ConnectBlock()
  *  can fail if those validity checks fail (among other reasons). */
@@ -2627,6 +2803,15 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
              nInputs <= 1 ? 0 : Ticks<MillisecondsDouble>(time_4 - time_2) / (nInputs - 1),
              Ticks<SecondsDouble>(m_chainman.time_verify),
              Ticks<MillisecondsDouble>(m_chainman.time_verify) / m_chainman.num_blocks_total);
+
+    // Elektron Net: validate UTXO checkpoint for checkpoint blocks
+    if (!ValidateUTXOCheckpoint(block, pindex->nHeight, view, m_blockman, state)) {
+        return false;
+    }
+
+    if (!fJustCheck) {
+        WriteAutomaticSnapshot(*this, pindex->nHeight, pindex);
+    }
 
     if (fJustCheck) {
         return true;

@@ -57,6 +57,7 @@
 #include <txmempool.h>
 #include <uint256.h>
 #include <util/check.h>
+#include <util/fs.h>
 #include <util/strencodings.h>
 #include <util/time.h>
 #include <util/trace.h>
@@ -94,18 +95,18 @@ TRACEPOINT_SEMAPHORE(net, misbehaving_connection);
 
 /** Headers download timeout.
  *  Timeout = base + per_header * (expected number of headers) */
-static constexpr auto HEADERS_DOWNLOAD_TIMEOUT_BASE = 15min;
+static constexpr auto HEADERS_DOWNLOAD_TIMEOUT_BASE = 30min;
 static constexpr auto HEADERS_DOWNLOAD_TIMEOUT_PER_HEADER = 1ms;
 /** How long to wait for a peer to respond to a getheaders request */
-static constexpr auto HEADERS_RESPONSE_TIME{2min};
+static constexpr auto HEADERS_RESPONSE_TIME{4min};
 /** Protect at least this many outbound peers from disconnection due to slow/
  * behind headers chain.
  */
 static constexpr int32_t MAX_OUTBOUND_PEERS_TO_PROTECT_FROM_DISCONNECT = 4;
 /** Timeout for (unprotected) outbound peers to sync to our chainwork */
-static constexpr auto CHAIN_SYNC_TIMEOUT{20min};
+static constexpr auto CHAIN_SYNC_TIMEOUT{40min};
 /** How frequently to check for stale tips */
-static constexpr auto STALE_CHECK_INTERVAL{10min};
+static constexpr auto STALE_CHECK_INTERVAL{20min};
 /** How frequently to check for extra outbound peers and disconnect */
 static constexpr auto EXTRA_PEER_CHECK_INTERVAL{45s};
 /** Minimum time an outbound-peer-eviction candidate must be connected for, in order to evict */
@@ -144,16 +145,23 @@ static_assert(MAX_BLOCKTXN_DEPTH <= MIN_BLOCKS_TO_KEEP, "MAX_BLOCKTXN_DEPTH too 
  *  degree of disordering of blocks on disk (which make reindexing and pruning harder). We'll probably
  *  want to make this a per-peer adaptive value at some point. */
 static const unsigned int BLOCK_DOWNLOAD_WINDOW = 1024;
-/** Block download timeout base, expressed in multiples of the block interval (i.e. 10 min) */
-static constexpr double BLOCK_DOWNLOAD_TIMEOUT_BASE = 1;
+/** Block download timeout base, expressed in multiples of the block interval.
+ *  Elektron Net: increased from 1 to 5 because our 60s blocks make the
+ *  original 60-second timeout too aggressive for slower peers. */
+static constexpr double BLOCK_DOWNLOAD_TIMEOUT_BASE = 5;
 /** Additional block download timeout per parallel downloading peer (i.e. 5 min) */
 static constexpr double BLOCK_DOWNLOAD_TIMEOUT_PER_PEER = 0.5;
 /** Maximum number of headers to announce when relaying blocks with headers message.*/
 static const unsigned int MAX_BLOCKS_TO_ANNOUNCE = 8;
-/** Minimum blocks required to signal NODE_NETWORK_LIMITED */
-static const unsigned int NODE_NETWORK_LIMITED_MIN_BLOCKS = 288;
-/** Window, in blocks, for connecting to NODE_NETWORK_LIMITED peers */
-static const unsigned int NODE_NETWORK_LIMITED_ALLOW_CONN_BLOCKS = 144;
+/** Minimum blocks required to signal NODE_NETWORK_LIMITED.
+ *  Elektron Net: equals MANDATORY_PRUNE_DEPTH (197,280 blocks = 137 days at 60s).
+ *  A pruned node guarantees at least this many blocks. */
+static const unsigned int NODE_NETWORK_LIMITED_MIN_BLOCKS = 197280;
+/** Window, in blocks, for connecting to NODE_NETWORK_LIMITED peers.
+ *  Elektron Net: all nodes are eventually pruned (137 days), so there are no
+ *  NODE_NETWORK peers. Limited peers must always be desirable. Set to a very
+ *  high value (effectively unlimited) so IBD nodes always accept them. */
+static const unsigned int NODE_NETWORK_LIMITED_ALLOW_CONN_BLOCKS = 10000000;
 /** Average delay between local address broadcasts */
 static constexpr auto AVG_LOCAL_ADDRESS_BROADCAST_INTERVAL{24h};
 /** Average delay between peer address broadcasts */
@@ -987,6 +995,69 @@ private:
     /** Number of peers from which we're downloading blocks. */
     int m_peers_downloading_from GUARDED_BY(cs_main) = 0;
 
+    /** Elektron Net: snapshot download state tracking */
+    struct SnapshotDownload {
+        uint256 checkpoint_hash;
+        int checkpoint_height{0};
+        uint64_t file_size{0};
+        /** Map of received byte ranges: start -> end (exclusive) */
+        std::map<uint64_t, uint64_t> received_ranges;
+        fs::path temp_path;
+        fs::path final_path;
+        bool completed{false};
+        std::map<NodeId, std::chrono::steady_clock::time_point> last_request_time;
+
+        /** Insert a received range and merge overlapping/adjacent ranges.
+         *  Returns true if the entire file [0, file_size) is covered. */
+        bool AddRange(uint64_t offset, size_t length)
+        {
+            if (length == 0) return IsComplete();
+            uint64_t end = offset + length;
+            auto it = received_ranges.lower_bound(offset);
+            // Check if previous range overlaps/adjacent
+            if (it != received_ranges.begin()) {
+                auto prev = std::prev(it);
+                if (prev->second >= offset) {
+                    offset = prev->first;
+                    end = std::max(end, prev->second);
+                    it = prev;
+                }
+            }
+            // Merge all overlapping/adjacent ranges
+            while (it != received_ranges.end() && it->first <= end) {
+                end = std::max(end, it->second);
+                it = received_ranges.erase(it);
+            }
+            received_ranges.emplace(offset, end);
+            return IsComplete();
+        }
+
+        bool IsComplete() const
+        {
+            if (file_size == 0) return false;
+            return !received_ranges.empty() &&
+                   received_ranges.begin()->first == 0 &&
+                   received_ranges.begin()->second >= file_size;
+        }
+
+        /** Return the first byte offset that has not yet been received.
+         *  If all bytes up to file_size have been received, returns file_size. */
+        uint64_t GetNextMissingOffset() const
+        {
+            if (file_size == 0) return 0;
+            if (received_ranges.empty()) return 0;
+            if (received_ranges.begin()->first > 0) return 0;
+            return received_ranges.begin()->second;
+        }
+    };
+    Mutex m_snapshot_download_mutex;
+    std::map<uint256, SnapshotDownload> m_snapshot_downloads GUARDED_BY(m_snapshot_download_mutex);
+    /** Peers that have advertised a snapshot for a given checkpoint */
+    std::map<uint256, std::set<NodeId>> m_snapshot_peers GUARDED_BY(m_snapshot_download_mutex);
+
+    /** Return the path to an automatic snapshot file for a given checkpoint hash, if it exists. */
+    std::optional<fs::path> FindSnapshotFile(const uint256& checkpoint_hash) const;
+
     void AddToCompactExtraTransactions(const CTransactionRef& tx) EXCLUSIVE_LOCKS_REQUIRED(g_msgproc_mutex);
 
     /** Orphan/conflicted/etc transactions that are kept for compact block reconstruction.
@@ -1718,6 +1789,14 @@ void PeerManagerImpl::FinalizeNode(const CNode& node)
 
     m_node_states.erase(nodeid);
 
+    // Elektron Net: clean up snapshot peer tracking
+    {
+        LOCK(m_snapshot_download_mutex);
+        for (auto& [hash, peers] : m_snapshot_peers) {
+            peers.erase(nodeid);
+        }
+    }
+
     if (m_node_states.empty()) {
         // Do a consistency check after the last peer is removed.
         assert(mapBlocksInFlight.empty());
@@ -2021,6 +2100,29 @@ PeerManagerImpl::PeerManagerImpl(CConnman& connman, AddrMan& addrman,
     if (opts.reconcile_txs) {
         m_txreconciliation = std::make_unique<TxReconciliationTracker>(TXRECONCILIATION_VERSION);
     }
+}
+
+std::optional<fs::path> PeerManagerImpl::FindSnapshotFile(const uint256& checkpoint_hash) const
+{
+    const fs::path snapshot_dir = m_chainman.m_options.datadir / "snapshots";
+    if (!fs::exists(snapshot_dir)) {
+        return std::nullopt;
+    }
+
+    for (const auto& entry : fs::directory_iterator(snapshot_dir)) {
+        const std::string fname = entry.path().filename().string();
+        // Expected format: <height>-<hash>.dat
+        if (fname.ends_with(".dat")) {
+            size_t dash_pos = fname.find('-');
+            if (dash_pos != std::string::npos) {
+                std::string hash_str = fname.substr(dash_pos + 1, 64);
+                if (hash_str == checkpoint_hash.ToString()) {
+                    return entry.path();
+                }
+            }
+        }
+    }
+    return std::nullopt;
 }
 
 void PeerManagerImpl::StartScheduledTasks(CScheduler& scheduler)
@@ -5005,6 +5107,143 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         return;
     }
 
+    // Elektron Net: handle UTXO snapshot requests
+    if (msg_type == NetMsgType::GETUTXOSNAPSHOT) {
+        uint256 checkpoint_hash;
+        vRecv >> checkpoint_hash;
+        LogDebug(BCLog::NET, "Received getutxosnapshot for %s from peer=%d\n",
+                 checkpoint_hash.ToString(), pfrom.GetId());
+        const CBlockIndex* checkpoint_index = m_chainman.m_blockman.LookupBlockIndex(checkpoint_hash);
+        if (checkpoint_index && checkpoint_index->nHeight > 0 &&
+            checkpoint_index->nHeight % MANDATORY_PRUNE_DEPTH == 0) {
+            auto stats = kernel::ComputeUTXOStats(
+                kernel::CoinStatsHashType::HASH_SERIALIZED,
+                &m_chainman.ActiveChainstate().CoinsDB(),
+                m_chainman.m_blockman);
+            if (stats) {
+                // Only advertise if we actually have the snapshot file
+                auto maybe_path = FindSnapshotFile(checkpoint_hash);
+                if (maybe_path) {
+                    uint64_t file_size = 0;
+                    try {
+                        file_size = fs::file_size(*maybe_path);
+                    } catch (const fs::filesystem_error&) {}
+                    MakeAndPushMessage(pfrom, NetMsgType::UTXOSNAPSHOT,
+                                       checkpoint_index->nHeight, checkpoint_hash, stats->hashSerialized, file_size);
+                    LogDebug(BCLog::NET, "Sent utxosnapshot for height %d (size=%d) to peer=%d\n",
+                             checkpoint_index->nHeight, file_size, pfrom.GetId());
+                }
+            }
+        }
+        return;
+    }
+
+    if (msg_type == NetMsgType::UTXOSNAPSHOT) {
+        int checkpoint_height;
+        uint256 checkpoint_hash;
+        uint256 utxo_hash;
+        uint64_t file_size;
+        vRecv >> checkpoint_height >> checkpoint_hash >> utxo_hash >> file_size;
+        LogDebug(BCLog::NET, "Received utxosnapshot for height %d hash=%s from peer=%d\n",
+                 checkpoint_height, checkpoint_hash.ToString(), pfrom.GetId());
+
+        // Elektron Net: track that this peer has the snapshot
+        {
+            LOCK(m_snapshot_download_mutex);
+            m_snapshot_peers[checkpoint_hash].insert(pfrom.GetId());
+            // If we are bootstrapping and need this snapshot, initialize download state
+            if (!m_snapshot_downloads.count(checkpoint_hash)) {
+                const fs::path snapshot_dir = m_chainman.m_options.datadir / "snapshots";
+                const fs::path final_path = snapshot_dir / strprintf("%d-%s.dat", checkpoint_height, checkpoint_hash.ToString());
+                if (!fs::exists(final_path)) {
+                    fs::create_directories(snapshot_dir);
+                    SnapshotDownload dl;
+                    dl.checkpoint_hash = checkpoint_hash;
+                    dl.checkpoint_height = checkpoint_height;
+                    dl.file_size = file_size;
+                    dl.final_path = final_path;
+                    dl.temp_path = final_path + ".download";
+                    // Create empty temp file
+                    FILE* f{fsbridge::fopen(dl.temp_path, "wb")};
+                    if (f) fclose(f);
+                    m_snapshot_downloads[checkpoint_hash] = std::move(dl);
+                    LogInfo("[snapshot] Initialized download for checkpoint %d (%s)\n",
+                            checkpoint_height, checkpoint_hash.ToString());
+                }
+            }
+        }
+        return;
+    }
+
+    // Elektron Net: handle snapshot data chunk requests
+    if (msg_type == NetMsgType::GETSNAPSHOTDATA) {
+        uint256 checkpoint_hash;
+        uint64_t offset;
+        uint32_t length;
+        vRecv >> checkpoint_hash >> offset >> length;
+        static constexpr uint32_t MAX_SNAPSHOT_CHUNK = 1 * 1024 * 1024;
+        if (length > MAX_SNAPSHOT_CHUNK) length = MAX_SNAPSHOT_CHUNK;
+        auto maybe_path = FindSnapshotFile(checkpoint_hash);
+        if (maybe_path) {
+            uint64_t file_size = 0;
+            try { file_size = fs::file_size(*maybe_path); } catch (const fs::filesystem_error&) {}
+            if (offset < file_size) {
+                if (offset + length > file_size) length = static_cast<uint32_t>(file_size - offset);
+                FILE* file{fsbridge::fopen(*maybe_path, "rb")};
+                AutoFile afile{file};
+                if (!afile.IsNull()) {
+                    afile.seek(offset, SEEK_SET);
+                    std::vector<uint8_t> data(length);
+                    size_t read = afile.detail_fread(std::span{reinterpret_cast<std::byte*>(data.data()), length});
+                    data.resize(read);
+                    MakeAndPushMessage(pfrom, NetMsgType::SNAPSHOTDATA,
+                                       checkpoint_hash, offset, data);
+                    LogDebug(BCLog::NET, "Sent snapshotdata for %s offset=%d len=%d to peer=%d\n",
+                             checkpoint_hash.ToString(), offset, read, pfrom.GetId());
+                }
+            }
+        }
+        return;
+    }
+
+    // Elektron Net: handle incoming snapshot data chunks
+    if (msg_type == NetMsgType::SNAPSHOTDATA) {
+        uint256 checkpoint_hash;
+        uint64_t offset;
+        std::vector<uint8_t> data;
+        vRecv >> checkpoint_hash >> offset >> data;
+        LogDebug(BCLog::NET, "Received snapshotdata for %s offset=%d len=%d from peer=%d\n",
+                 checkpoint_hash.ToString(), offset, data.size(), pfrom.GetId());
+
+        {
+            LOCK(m_snapshot_download_mutex);
+            auto it = m_snapshot_downloads.find(checkpoint_hash);
+            if (it != m_snapshot_downloads.end()) {
+                it->second.last_request_time.erase(pfrom.GetId());
+            }
+            if (it != m_snapshot_downloads.end() && !it->second.completed &&
+                offset < it->second.file_size && !data.empty()) {
+                FILE* file{fsbridge::fopen(it->second.temp_path, "r+b")};
+                if (file) {
+                    AutoFile afile{file};
+                    afile.seek(offset, SEEK_SET);
+                    afile.write(std::span{reinterpret_cast<const std::byte*>(data.data()), data.size()});
+                    if (it->second.AddRange(offset, data.size())) {
+                        it->second.completed = true;
+                        try {
+                            fs::rename(it->second.temp_path, it->second.final_path);
+                            LogInfo("[snapshot] Download complete for %s -> %s\n",
+                                    checkpoint_hash.ToString(), fs::PathToString(it->second.final_path));
+                        } catch (const fs::filesystem_error& e) {
+                            LogWarning("[snapshot] Failed to rename downloaded snapshot: %s\n", e.what());
+                        }
+                    }
+                }
+            }
+        }
+        return;
+    }
+
     if (msg_type == NetMsgType::NOTFOUND) {
         std::vector<CInv> vInv;
         vRecv >> vInv;
@@ -6223,5 +6462,31 @@ bool PeerManagerImpl::SendMessages(CNode& node)
             MakeAndPushMessage(node, NetMsgType::GETDATA, vGetData);
     } // release cs_main
     MaybeSendFeefilter(node, peer, current_time);
+
+    // Elektron Net: request snapshot data chunks if there is an active download
+    // and this peer has advertised the snapshot.
+    {
+        LOCK(m_snapshot_download_mutex);
+        for (auto& [hash, dl] : m_snapshot_downloads) {
+            if (dl.completed || dl.file_size == 0) continue;
+            auto peer_it = m_snapshot_peers.find(hash);
+            if (peer_it != m_snapshot_peers.end() && peer_it->second.count(node.GetId())) {
+                static constexpr uint32_t SNAPSHOT_CHUNK_SIZE = 1 * 1024 * 1024; // 1 MB
+                uint64_t offset = dl.GetNextMissingOffset();
+                if (offset < dl.file_size) {
+                    auto now = std::chrono::steady_clock::now();
+                    auto req_it = dl.last_request_time.find(node.GetId());
+                    if (req_it != dl.last_request_time.end() && now - req_it->second < std::chrono::seconds(10)) {
+                        continue;
+                    }
+                    dl.last_request_time[node.GetId()] = now;
+                    MakeAndPushMessage(node, NetMsgType::GETSNAPSHOTDATA, hash, offset, SNAPSHOT_CHUNK_SIZE);
+                    LogDebug(BCLog::NET, "Requesting snapshot chunk %s offset=%d from peer=%d\n",
+                             hash.ToString(), offset, node.GetId());
+                }
+            }
+        }
+    }
+
     return true;
 }

@@ -13,8 +13,10 @@
 
 BOOST_FIXTURE_TEST_SUITE(peerman_tests, RegTestingSetup)
 
-/** Window, in blocks, for connecting to NODE_NETWORK_LIMITED peers */
-static constexpr int64_t NODE_NETWORK_LIMITED_ALLOW_CONN_BLOCKS = 144;
+/** Window, in blocks, for connecting to NODE_NETWORK_LIMITED peers.
+ *  Elektron Net: all nodes are pruned, so limited peers must always be
+ *  desirable. Kept in sync with the value in net_processing.cpp. */
+static constexpr int64_t NODE_NETWORK_LIMITED_ALLOW_CONN_BLOCKS = 10000000;
 
 static void mineBlock(const node::NodeContext& node, std::chrono::seconds block_time)
 {
