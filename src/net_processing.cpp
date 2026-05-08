@@ -6409,7 +6409,10 @@ bool PeerManagerImpl::SendMessages(CNode& node)
         // Message: getdata (blocks)
         //
         std::vector<CInv> vGetData;
-        if (CanServeBlocks(peer) && ((sync_blocks_and_headers_from_peer && !IsLimitedPeer(peer)) || !m_chainman.IsInitialBlockDownload()) && state.vBlocksInFlight.size() < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
+        // Elektron Net: for small chains (< MIN_BLOCKS_TO_KEEP), allow downloading blocks from limited peers too,
+        // because every peer that has the headers also has all blocks when the chain is small.
+        bool allow_limited_download = m_chainman.m_best_header && m_chainman.m_best_header->nHeight < static_cast<int>(MIN_BLOCKS_TO_KEEP);
+        if (CanServeBlocks(peer) && ((sync_blocks_and_headers_from_peer && (!IsLimitedPeer(peer) || allow_limited_download)) || !m_chainman.IsInitialBlockDownload()) && state.vBlocksInFlight.size() < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
             std::vector<const CBlockIndex*> vToDownload;
             NodeId staller = -1;
             auto get_inflight_budget = [&state]() {
