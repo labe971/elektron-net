@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Elektron Net Faucet</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #0b0f19;
+      color: #e2e8f0;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+    }
+    .card {
+      background: #111827;
+      border: 1px solid #1f2937;
+      border-radius: 12px;
+      padding: 32px;
+      width: 100%;
+      max-width: 480px;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.35);
+    }
+    h1 { margin: 0 0 8px; font-size: 22px; }
+    .subtitle { color: #94a3b8; margin-bottom: 24px; font-size: 14px; }
+    label { display: block; margin-bottom: 6px; font-size: 13px; color: #94a3b8; }
+    input[type="text"] {
+      width: 100%;
+      padding: 12px 14px;
+      background: #0b0f19;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      color: #e2e8f0;
+      font-size: 15px;
+      outline: none;
+    }
+    input[type="text"]:focus { border-color: #3b82f6; }
+    .row { margin-bottom: 16px; }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #3b82f6;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    button:hover { background: #2563eb; }
+    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    .message { margin-top: 16px; padding: 12px; border-radius: 8px; font-size: 14px; }
+    .success { background: #064e3b; color: #a7f3d0; }
+    .error { background: #450a0a; color: #fecaca; }
+    .stats { margin-top: 20px; font-size: 13px; color: #94a3b8; }
+    .stats span { color: #e2e8f0; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Elektron Net Faucet</h1>
+    <div class="subtitle">Receive free testnet/mainnet coins to your wallet.</div>
+
+    <div class="row">
+      <label for="address">Wallet Address</label>
+      <input id="address" type="text" placeholder="Enter your Elektron Net address" />
+    </div>
+
+    <button id="claimBtn">Claim Coins</button>
+    <div id="message"></div>
+
+    <div class="stats">
+      Payout: <span id="payout">...</span> EL &middot;
+      Cooldown: <span id="cooldown">...</span>h &middot;
+      Daily left: <span id="dailyLeft">...</span>
+    </div>
+  </div>
+
+  <script>
+    const $ = (sel) => document.querySelector(sel);
+
+    async function loadStats() {
+      try {
+        const r = await fetch('/api/stats');
+        const s = await r.json();
+        $('#payout').textContent = s.payout;
+        $('#cooldown').textContent = s.cooldownHours;
+        $('#dailyLeft').textContent = Math.max(0, s.dailyLimit - s.dailyUsed).toFixed(2) + ' EL';
+      } catch (e) {
+        console.error(e);
+      }
+    }
+
+    $('#claimBtn').addEventListener('click', async () => {
+      const address = $('#address').value.trim();
+      const msg = $('#message');
+      const btn = $('#claimBtn');
+      if (!address) {
+        msg.className = 'message error';
+        msg.textContent = 'Please enter a wallet address.';
+        return;
+      }
+      btn.disabled = true;
+      msg.className = '';
+      msg.textContent = 'Sending request...';
+      try {
+        const r = await fetch('/api/claim', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ address })
+        });
+        const data = await r.json();
+        if (!r.ok) {
+          msg.className = 'message error';
+          msg.textContent = data.error || 'Request failed.';
+        } else {
+          msg.className = 'message success';
+          msg.innerHTML = `Sent <strong>${data.amount} EL</strong><br/>TXID: <code>${data.txid}</code>`;
+          $('#address').value = '';
+          loadStats();
+        }
+      } catch (e) {
+        msg.className = 'message error';
+        msg.textContent = 'Network error. Try again later.';
+      } finally {
+        btn.disabled = false;
+      }
+    });
+
+    loadStats();
+  </script>
+</body>
+</html>
