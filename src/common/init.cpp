@@ -83,7 +83,7 @@ std::optional<ConfigError> InitConfig(ArgsManager& args, SettingsAbortFn setting
                           << "seednode=188.20.182.78:8333\n"
                           << "\n"
                           << "# Manually add a permanent node (disables automatic discovery for this peer).\n"
-                          << "addnode=addnode=188.20.182.78:8333\n"
+                          << "addnode=188.20.182.78:8333\n"
                           << "\n"
                           << "# Accept incoming P2P connections (required for a public node).\n"
                           << "listen=1\n"
