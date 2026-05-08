@@ -22,6 +22,7 @@
 #include <flatfile.h>
 #include <headerssync.h>
 #include <index/blockfilterindex.h>
+#include <kernel/coinstats.h>
 #include <kernel/types.h>
 #include <logging.h>
 #include <merkleblock.h>
@@ -5154,7 +5155,7 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
             // If we are bootstrapping and need this snapshot, initialize download state
             if (!m_snapshot_downloads.count(checkpoint_hash)) {
                 const fs::path snapshot_dir = m_chainman.m_options.datadir / "snapshots";
-                const fs::path final_path = snapshot_dir / strprintf("%d-%s.dat", checkpoint_height, checkpoint_hash.ToString());
+                const fs::path final_path = snapshot_dir / fs::u8path(strprintf("%d-%s.dat", checkpoint_height, checkpoint_hash.ToString()));
                 if (!fs::exists(final_path)) {
                     fs::create_directories(snapshot_dir);
                     SnapshotDownload dl;

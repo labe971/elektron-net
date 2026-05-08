@@ -2371,7 +2371,7 @@ void WriteAutomaticSnapshot(Chainstate& chainstate, int nHeight, const CBlockInd
     const fs::path datadir = chainstate.m_chainman.m_options.datadir;
     const fs::path snapshot_dir = datadir / "snapshots";
     const std::string filename = strprintf("%d-%s.dat", nHeight, pindex->GetBlockHash().ToString());
-    const fs::path snapshot_path = snapshot_dir / filename;
+    const fs::path snapshot_path = snapshot_dir / fs::u8path(filename);
 
     if (fs::exists(snapshot_path)) {
         LogDebug(BCLog::VALIDATION, "Snapshot already exists at %s, skipping.\n", fs::PathToString(snapshot_path));
