@@ -141,8 +141,6 @@ public:
 
         bech32_hrp = "be";
 
-        vFixedSeeds.clear();
-
         fDefaultConsistencyChecks = false;
         m_is_mockable_chain = false;
 
