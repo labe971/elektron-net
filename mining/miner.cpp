@@ -734,7 +734,7 @@ static CoinbaseResult build_coinbase_tx(const BlockTemplate &tmpl, const std::ve
     auto oc = write_compact_size(output_count);
     tx_no_witness.insert(tx_no_witness.end(), oc.begin(), oc.end());
     tx_no_witness.insert(tx_no_witness.end(), outputs.begin(), outputs.end());
-    push_u32_le(tx_no_witness, 0);
+    push_u32_le(tx_no_witness, static_cast<uint32_t>(tmpl.height - 1));
 
     std::vector<uint8_t> tx = tx_no_witness;
     tx.insert(tx.begin() + 4, {0x00, 0x01});
@@ -829,14 +829,13 @@ static void bits_to_target(uint32_t n_bits, uint8_t target[32]) {
     uint32_t exponent = (n_bits >> 24) & 0xff;
     uint32_t coefficient = n_bits & 0x007fffff;
     std::memset(target, 0, 32);
-    int start = 32 - static_cast<int>(exponent);
-    if (start >= 0 && start < 32) target[start] = (coefficient >> 16) & 0xff;
-    if (start + 1 >= 0 && start + 1 < 32) target[start + 1] = (coefficient >> 8) & 0xff;
-    if (start + 2 >= 0 && start + 2 < 32) target[start + 2] = (coefficient >> 0) & 0xff;
+    target[exponent - 3] = (coefficient >> 0) & 0xff;
+    if (exponent >= 2) target[exponent - 2] = (coefficient >> 8) & 0xff;
+    if (exponent >= 1) target[exponent - 1] = (coefficient >> 16) & 0xff;
 }
 
 static bool hash_le_target(const uint8_t hash[32], const uint8_t target[32]) {
-    for (int i = 0; i < 32; ++i) {
+    for (int i = 31; i >= 0; --i) {
         if (hash[i] < target[i]) return true;
         if (hash[i] > target[i]) return false;
     }
