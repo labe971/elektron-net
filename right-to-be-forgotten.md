@@ -1,6 +1,6 @@
 # The Global Right to Be Forgotten — A Legal and Human Rights Overview
 
-*A chapter for elektron-net.org*
+*The 137-day pruning cycle of Elektron Net*
 
 ---
 
@@ -250,6 +250,6 @@ No jurisdiction can reach what does not exist.
 
 ---
 
-*For the technical specification of the 137-day pruning mechanism, refer to the Protocol Architecture section of this whitepaper.*
+*For the technical specification of the 137-day pruning mechanism, refer to the Protocol Architecture section of the Elektron Net whitepaper.*
 
 *Elektron Net does not provide legal advice. This overview is for informational purposes only. Users operating in specific jurisdictions should consult local counsel regarding applicable data protection obligations.*
