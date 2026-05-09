@@ -77,6 +77,7 @@ std::optional<ConfigError> InitConfig(ArgsManager& args, SettingsAbortFn setting
                           << "# --------------------------------------------\n"
                           << "# Network (P2P)\n"
                           << "# --------------------------------------------\n"
+                          << "\n"
                           << "# Manually add a permanent node (disables automatic discovery for this peer).\n"
                           << "# addnode=188.20.182.78:8333\n"
                           << "\n"
