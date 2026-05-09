@@ -196,7 +196,7 @@ The Python miner automatically detects and supports:
 
 ```bash
 cmake -B build -S .
-cmake --build build --config Release)
+cmake --build build --config Release
 ```
 
 ### Usage
