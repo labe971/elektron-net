@@ -442,7 +442,7 @@ def main():
     rpc = RpcClient(args.url, args.user, args.password)
 
     print(f"Elektron Net Miner (Python)")
-    print(f"Network:   Elektron Net (60s blocks, 5 Elek reward)")
+    print(f"Network:   Elektron Net (60s blocks)")
     print(f"RPC:       {args.url}")
     print(f"Address:   {args.address}")
     print(f"Threads:   {args.threads}")
