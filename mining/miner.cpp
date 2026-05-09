@@ -980,12 +980,12 @@ int main(int argc, char *argv[]) {
 
                 bool accepted = result.empty() || result == "null" || result.find("\"result\":null") != std::string::npos;
                 if (!accepted) {
-                    std::cerr << "ERROR: Block was rejected by the node. Waiting 10s before retry to avoid waste.\n";
-                    std::this_thread::sleep_for(std::chrono::seconds(10));
+                    std::cerr << "ERROR: Block was rejected by the node. Waiting 5s before retry to avoid waste.\n";
+                    std::this_thread::sleep_for(std::chrono::seconds(5));
                 } else {
                     std::cout << "Block accepted. Waiting for next height before continuing...\n";
                     int64_t submitted_height = tmpl.height;
-                    for (int wait = 0; wait < 60; ++wait) {
+                    for (int wait = 0; wait < 5; ++wait) {
                         std::this_thread::sleep_for(std::chrono::seconds(1));
                         try {
                             std::string info = rpc.call("getblockchaininfo", {});
