@@ -734,7 +734,7 @@ static CoinbaseResult build_coinbase_tx(const BlockTemplate &tmpl, const std::ve
     auto oc = write_compact_size(output_count);
     tx_no_witness.insert(tx_no_witness.end(), oc.begin(), oc.end());
     tx_no_witness.insert(tx_no_witness.end(), outputs.begin(), outputs.end());
-    push_u32_le(tx_no_witness, static_cast<uint32_t>(tmpl.height - 1));
+    push_u32_le(tx_no_witness, 0);
 
     std::vector<uint8_t> tx = tx_no_witness;
     tx.insert(tx.begin() + 4, {0x00, 0x01});
@@ -829,24 +829,25 @@ static void bits_to_target(uint32_t n_bits, uint8_t target[32]) {
     uint32_t exponent = (n_bits >> 24) & 0xff;
     uint32_t coefficient = n_bits & 0x007fffff;
     std::memset(target, 0, 32);
-    target[exponent - 3] = (coefficient >> 0) & 0xff;
-    if (exponent >= 2) target[exponent - 2] = (coefficient >> 8) & 0xff;
-    if (exponent >= 1) target[exponent - 1] = (coefficient >> 16) & 0xff;
+    int start = 32 - static_cast<int>(exponent);
+    if (start >= 0 && start < 32) target[start] = (coefficient >> 16) & 0xff;
+    if (start + 1 >= 0 && start + 1 < 32) target[start + 1] = (coefficient >> 8) & 0xff;
+    if (start + 2 >= 0 && start + 2 < 32) target[start + 2] = (coefficient >> 0) & 0xff;
 }
 
 static bool hash_le_target(const uint8_t hash[32], const uint8_t target[32]) {
-    for (int i = 31; i >= 0; --i) {
+    for (int i = 0; i < 32; ++i) {
         if (hash[i] < target[i]) return true;
         if (hash[i] > target[i]) return false;
     }
     return true;
 }
 
-static void mine_thread(int tid, const uint8_t header[76], const uint8_t target[32], uint32_t start_nonce) {
+static void mine_thread(int tid, const uint8_t header[76], const uint8_t target[32], uint32_t start_nonce, uint32_t step) {
     uint8_t hash[32];
     uint8_t local_header[80];
     std::memcpy(local_header, header, 76);
-    for (uint32_t nonce = start_nonce; nonce < 0xffffffff && !g_found.load(); ++nonce) {
+    for (uint32_t nonce = start_nonce; nonce < 0xffffffff && !g_found.load(); nonce += step) {
         local_header[76] = nonce & 0xff;
         local_header[77] = (nonce >> 8) & 0xff;
         local_header[78] = (nonce >> 16) & 0xff;
@@ -959,7 +960,7 @@ int main(int argc, char *argv[]) {
 
             std::vector<std::thread> threads;
             for (int i = 0; i < cfg.threads; ++i) {
-                threads.emplace_back(mine_thread, i, raw_header, target, i);
+                threads.emplace_back(mine_thread, i, raw_header, target, i, static_cast<uint32_t>(cfg.threads));
             }
             for (auto &t : threads) t.join();
 
@@ -977,16 +978,38 @@ int main(int argc, char *argv[]) {
 
                 std::string result = rpc.call("submitblock", {"\"" + block_hex + "\""});
                 std::cout << "Submit result: " << result << "\n";
+
+                bool accepted = result.empty() || result == "null" || result.find("\"result\":null") != std::string::npos;
+                if (!accepted) {
+                    std::cerr << "ERROR: Block was rejected by the node. Waiting 10s before retry to avoid waste.\n";
+                    std::this_thread::sleep_for(std::chrono::seconds(10));
+                } else {
+                    std::cout << "Block accepted. Waiting for next height before continuing...\n";
+                    int64_t submitted_height = tmpl.height;
+                    for (int wait = 0; wait < 60; ++wait) {
+                        std::this_thread::sleep_for(std::chrono::seconds(1));
+                        try {
+                            std::string info = rpc.call("getblockchaininfo", {});
+                            int64_t current_height = extract_json_int(info, "blocks");
+                            if (current_height > submitted_height) {
+                                std::cout << "New height detected: " << current_height << "\n";
+                                break;
+                            }
+                        } catch (...) {}
+                    }
+                    continue;
+                }
             } else {
                 std::cout << "No nonce found (template expired?).\n";
             }
         } catch (const std::exception &e) {
             std::cerr << "Error: " << e.what() << "\n";
             std::this_thread::sleep_for(std::chrono::seconds(5));
+            continue;
         }
 
-        std::cout << "Press Ctrl+C to stop, or waiting 1s before next round...\n";
-        std::this_thread::sleep_for(std::chrono::seconds(1));
+        std::cout << "Waiting before next round...\n";
+        std::this_thread::sleep_for(std::chrono::seconds(5));
     }
     return 0;
 }
