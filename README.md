@@ -1,6 +1,11 @@
 Elektron Net
 ============
 
+[![Webseite](https://img.shields.io/badge/Webseite-elektron--net.org-blue?style=for-the-badge&logo=internet-explorer)](https://elektron-net.org)
+[![Reddit](https://img.shields.io/badge/Reddit-r/elektronnet-orange?style=for-the-badge&logo=reddit)](https://www.reddit.com/r/elektronnet/)
+[![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/nYsm2vEb2W)
+
+
 https://github.com/kutlusoy/elektron-net
 
 What is Elektron Net?
