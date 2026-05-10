@@ -120,6 +120,7 @@ struct Params {
       */
     bool enforce_BIP94;
     bool fPowNoRetargeting;
+    int MinDifficultyActivationHeight = -1;
     int64_t nPowTargetSpacing;
     int64_t nPowTargetTimespan;
     std::chrono::seconds PowTargetSpacing() const

@@ -57,8 +57,10 @@ int64_t UpdateTime(CBlockHeader* pblock, const Consensus::Params& consensusParam
         pblock->nTime = nNewTime;
     }
 
-    // Updating time can change work required on testnet:
-    if (consensusParams.fPowAllowMinDifficultyBlocks) {
+    // Updating time can change work required when min-difficulty is allowed:
+    bool allowMinDifficulty = consensusParams.fPowAllowMinDifficultyBlocks ||
+        (consensusParams.MinDifficultyActivationHeight != -1 && (pindexPrev->nHeight + 1) >= consensusParams.MinDifficultyActivationHeight);
+    if (allowMinDifficulty) {
         pblock->nBits = GetNextWorkRequired(pindexPrev, pblock, consensusParams);
     }
 
@@ -396,7 +398,10 @@ std::unique_ptr<CBlockTemplate> WaitAndCreateNewBlock(ChainstateManager& chainma
     auto now{NodeClock::now()};
     const auto deadline = now + options.timeout;
     const MillisecondsDouble tick{1000};
-    const bool allow_min_difficulty{chainman.GetParams().GetConsensus().fPowAllowMinDifficultyBlocks};
+    const auto& consensus = chainman.GetParams().GetConsensus();
+    const CBlockIndex* active_tip = chainman.ActiveChain().Tip();
+    const bool allow_min_difficulty = consensus.fPowAllowMinDifficultyBlocks ||
+        (consensus.MinDifficultyActivationHeight != -1 && active_tip && (active_tip->nHeight + 1) >= consensus.MinDifficultyActivationHeight);
 
     do {
         bool tip_changed{false};

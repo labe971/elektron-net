@@ -209,4 +209,50 @@ BOOST_AUTO_TEST_CASE(ChainParams_SIGNET_sanity)
     sanity_check_chainparams(*m_node.args, ChainType::SIGNET);
 }
 
+/* Test MinDifficultyActivationHeight logic */
+BOOST_AUTO_TEST_CASE(min_difficulty_activation_height)
+{
+    auto consensus = CreateChainParams(*m_node.args, ChainType::MAIN)->GetConsensus();
+    consensus.fPowAllowMinDifficultyBlocks = false;
+    consensus.MinDifficultyActivationHeight = 1000;
+
+    unsigned int nProofOfWorkLimit = UintToArith256(consensus.powLimit).GetCompact();
+
+    // BEFORE activation height: even with a long delay, difficulty should not drop to minimum
+    {
+        CBlockIndex pindexLast;
+        pindexLast.nHeight = 998; // next block = 999
+        pindexLast.nTime = 1000;
+        pindexLast.nBits = 0x1d00ffff;
+        pindexLast.pprev = nullptr;
+
+        CBlockHeader block;
+        block.nTime = pindexLast.nTime + consensus.nPowTargetSpacing * 3; // > 120s delay
+
+        unsigned int nBits = GetNextWorkRequired(&pindexLast, &block, consensus);
+        BOOST_CHECK_EQUAL(nBits, pindexLast.nBits);
+    }
+
+    // AT activation height: long delay should allow minimum difficulty
+    {
+        CBlockIndex pindexLast;
+        pindexLast.nHeight = 999; // next block = 1000
+        pindexLast.nTime = 1000;
+        pindexLast.nBits = 0x1d00ffff;
+        pindexLast.pprev = nullptr;
+
+        CBlockHeader block;
+        block.nTime = pindexLast.nTime + consensus.nPowTargetSpacing * 3; // > 120s delay
+
+        unsigned int nBits = GetNextWorkRequired(&pindexLast, &block, consensus);
+        BOOST_CHECK_EQUAL(nBits, nProofOfWorkLimit);
+    }
+
+    // PermittedDifficultyTransition should be strict before activation
+    BOOST_CHECK(!PermittedDifficultyTransition(consensus, 500, 0x1d00ffff, 0x1d00ffff + 1));
+    // ...and permissive at/after activation
+    BOOST_CHECK(PermittedDifficultyTransition(consensus, 1000, 0x1d00ffff, 0x1d00ffff + 1));
+    BOOST_CHECK(PermittedDifficultyTransition(consensus, 1001, 0x1d00ffff, 0x1d00ffff + 1));
+}
+
 BOOST_AUTO_TEST_SUITE_END()

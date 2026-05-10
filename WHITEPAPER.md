@@ -1,5 +1,5 @@
 # Elektron Net — Whitepaper
-**Version 3.0 | Author: Ali Kutlusoy | Graz, Austria, 2026**
+**Version 3.0.1 | Author: Ali Kutlusoy | Graz, Austria, 2026**
 
 ---
 
@@ -58,6 +58,8 @@ Your UTXO set is your pocket. It contains exactly what you possess in this momen
 
 This is not merely privacy engineering. It is the **exercise of the worldwide right to be forgotten, by design**. No administrator can override it. No majority vote can extend it. The will of the user is encoded in consensus: after 137 days, the data is gone. Not because a company decided to comply, but because mathematics and physics demand it.
 
+For a comprehensive legal overview of the right to be forgotten across jurisdictions, see [`right-to-be-forgotten.md`](right-to-be-forgotten.md).
+
 > *"Mathematics secures your money. Time erases your traces. You own the moment."*
 
 ### 1.2 History & The Problem
@@ -80,7 +82,7 @@ An immutable global ledger of all financial history creates three inevitable cat
 - **Unbounded storage growth** — nodes must carry the full weight of decades of data, pricing out ordinary users and centralising power.
 - **Institutional risk** — data that exists can be subpoenaed, analysed, weaponised, and sold. If it is stored, it will be exploited.
 
-Bitcoin was built for institutional resilience. Elektron Net 2.0 is built for human sovereignty — and for the ancient, inalienable right of every person to be forgotten.
+Bitcoin was built for institutional resilience. Elektron Net is built for human sovereignty — and for the ancient, inalienable right of every person to be forgotten.
 
 ---
 
@@ -92,7 +94,7 @@ Bitcoin was built for institutional resilience. Elektron Net 2.0 is built for hu
 |---|---|---|
 | Language | Bitcoin Core | C++20 |
 | Consensus | Bitcoin Core | SHA-256d PoW, Nakamoto longest-chain rule |
-| Difficulty Adjustment | Bitcoin Core | Every 2,016 blocks (retargeting period halved in calendar time) |
+| Difficulty Adjustment | Bitcoin Core | Every 2,016 blocks + Stoic Awakening recovery (block 137035) |
 | Script Engine | Bitcoin Core | OP_CODES unchanged |
 | P2P Network | Bitcoin Core | TCP/IP, addr relay, DoS protection |
 | Wallet | Bitcoin Core | BIP-32/39/44, descriptor wallets, Bech32m |
@@ -101,11 +103,12 @@ Bitcoin was built for institutional resilience. Elektron Net 2.0 is built for hu
 
 **Changes to Bitcoin Core:**
 
-| Parameter | Bitcoin | Elektron Net 2.0 |
+| Parameter | Bitcoin | Elektron Net |
 |---|---|---|
 | Block time | 10 minutes | **60 seconds** |
 | Blocks per day | 144 | **1,440** |
 | Retarget interval | 2,016 blocks (2 weeks) | **2,016 blocks (1.4 days)** |
+| Difficulty recovery | None | **Stoic Awakening** (min-difficulty after >120s delay, activated at block 137035) |
 | Pruning | Optional, user-defined | **Mandatory, 137 days** |
 
 All other consensus rules, opcodes, signature schemes (ECDSA, Schnorr/Taproot), and network behaviour are preserved exactly.
@@ -140,6 +143,59 @@ Reducing block time by 10× would inflate supply by 10× if the block reward wer
 
 **No pre-mine. No airdrop. No founder allocation.** Every Elek is earned by producing valid proof-of-work.
 
+### 3.3 Chain Liveness Guarantee (Stoic Awakening)
+
+Elektron Net is designed to reward miners frequently — but a payment network that stops moving is not a payment network at all. It is a monument.
+
+Bitcoin’s 2,016-block difficulty retargeting window assumes a relatively stable hashrate. If a single high-hashrate miner dominates the network, drives the difficulty upward, and then abruptly disconnects, the remaining miners may lack the collective power to find the next block before the regular retargeting interval. Block times stretch from minutes into hours. Transactions stall. The chain dies of its own weight — not because the protocol failed, but because a single actor left.
+
+**A currency that can be killed by one miner leaving is not a currency. It is a hostage.**
+
+#### 3.3.1 The Mechanism
+
+To prevent this, Elektron Net introduces a **Dynamic Difficulty Recovery Mechanism**, activated at block **137035** via hard fork v3.0.1 (*Stoic Awakening*).
+
+Outside the regular 2,016-block retargeting interval, the protocol evaluates an additional safety condition:
+
+> **If the time elapsed since the last block exceeds 120 seconds (2× the 60-second target spacing), the next block may be mined at the minimum difficulty (`powLimit`).**
+
+Once a minimum-difficulty block is found, the target immediately returns to the regular 2,016-block average for the subsequent block. This is not a subsidy. It is not a competitive advantage for any miner. It is an emergency respiration valve — a guarantee that the chain continues to breathe when external circumstances temporarily suffocate it.
+
+| Feature | Testnet Min-Difficulty | Stoic Awakening (Mainnet) |
+|---|---|---|
+| Trigger | Always active outside retarget | Only after >120s delay |
+| Effect on next block | Returns to regular difficulty | Returns to regular difficulty |
+| Competitive impact | Lowers barrier to entry | Neutral — all miners use same template |
+| Purpose | Test mining without hardware | **Prevent chain stall after hashrate shock** |
+
+Because the node automatically updates the block template’s `nBits` field when the delay threshold is crossed, **no miner software changes are required**. Standalone miners, pool software, and ASIC firmware continue to operate exactly as before — they simply mine against the `bits` value provided by `getblocktemplate`.
+
+#### 3.3.2 Consensus Properties
+
+The activation is **height-based** (block 137035), not time-based. This guarantees deterministic behavior:
+
+- Blocks before 137035 are validated under the original rules.
+- Blocks at or after 137035 are validated under the new rules.
+- Old nodes (v3.0.0) reject post-fork min-difficulty blocks as invalid, ensuring a clean network partition that forces upgrades.
+
+Protocol version is incremented to `70017`, and `MIN_PEER_PROTO_VERSION` is raised to `70017`, so v3.0.0 peers are disconnected immediately upon connection.
+
+#### 3.3.3 Why This Protects Everyone
+
+A stalled chain harms **all** participants equally:
+
+| Stakeholder | Impact of Chain Stall |
+|---|---|
+| Miners | No new blocks to mine = no revenue |
+| Users | Transactions stuck in mempool, zero finality |
+| Exchanges | Cannot process deposits or withdrawals |
+| Developers | No block space for new transactions |
+| The Network | Reputation damage, loss of trust |
+
+The Stoic Awakening rule is therefore a **universal insurance policy**, not a redistribution. It does not favour small miners over large ones, CPU miners over ASICs, or new entrants over incumbents. It simply ensures that the network continues to function when external circumstances — a miner leaving, a power outage, a geopolitical event — temporarily reduce hashrate.
+
+> *"Mathematics secures your money. Resilience secures the network."*
+
 ---
 
 ## 4 — 137-Day Pruning: The Forgetting
@@ -154,6 +210,36 @@ This is structural impossibility, not policy:
 - No hacker can breach a database that has been mathematically erased.
 
 The 137-day window enforces the **right to be forgotten** as a protocol invariant. It is not a service offered to users; it is a property of the network demanded by them. The user’s will is not expressed through a privacy toggle or a terms-of-service checkbox. It is expressed through hash power, through node operation, through the consensus rules themselves. To run Elektron Net is to vote for forgetting. To mine Elektron Net is to execute that vote.
+
+#### 4.1.1 Express Declaration of Will
+
+By choosing Elektron Net, every user makes an **express, informed, and irrevocable declaration of will**: they affirmatively exercise their right to be forgotten. This blockchain was selected precisely because it transforms a legal claim — recognised across jurisdictions — into a protocol guarantee. No petition is required. No controller must be persuaded. The right is exercised automatically, by mathematics, every 137 days.
+
+The following jurisdictions explicitly recognise this right in law:
+
+| Jurisdiction | Legal Instrument | Relevant Article / Paragraph |
+|---|---|---|
+| 🇪🇺 European Union | GDPR (Regulation EU 2016/679) | Art. 17 (right to erasure), Art. 25 (data protection by design) |
+| 🇬🇧 United Kingdom | UK GDPR / Data Protection Act 2018 | Art. 17, § 1 Rehabilitation of Offenders Act 1974 |
+| 🇧🇷 Brazil | LGPD (Law No. 13,709/2018) | Art. 5(XVI), Art. 15, Art. 16, Art. 18(IV), Art. 18(VI) |
+| 🇨🇦 Canada | PIPEDA / CPPA Bill C-27 / Quebec Law 25 | Principle 5, Principle 9, § 55 (proposed), § 28.1 (Quebec) |
+| 🇰🇷 South Korea | PIPA (Act No. 10465) | Art. 36, Art. 37, Art. 39-3 |
+| 🇦🇷 Argentina | PDPA (Law No. 25,326) | Art. 16, Art. 43 (habeas data) |
+| 🇵🇭 Philippines | Data Privacy Act (RA 10173) | § 16(d) |
+| 🇯🇵 Japan | APPI (Act No. 57/2003) | Art. 24, Art. 33, Art. 34, Art. 35 |
+| 🇹🇷 Turkey | KVKK (Law No. 6698) | Art. 7, Art. 11(e), Art. 11(f) |
+| 🇷🇸 Serbia | Law on Personal Data Protection (No. 87/2018) | Art. 25, Art. 30, Art. 31 |
+| 🇺🇸 United States | CCPA / CPRA (California) | Cal. Civ. Code § 1798.105 |
+| 🇺🇸 United States | Virginia CDPA | § 59.1-577(A)(4) |
+| 🇺🇸 United States | Colorado CPA | C.R.S. § 6-1-1306(1)(d) |
+| 🌐 International | UDHR (UN, 1948) | Art. 12 |
+| 🌐 International | ICCPR (UN, 1966) | Art. 17 |
+| 🌐 International | ECHR (Council of Europe) | Art. 8 |
+| 🌐 International | Convention 108+ (CoE, 2018) | Art. 9 |
+
+For the full legal overview, see [`right-to-be-forgotten.md`](right-to-be-forgotten.md).
+
+**This is not passive consent. This is active, informed, pre-emptive invocation of a right recognised in law across more than 50 jurisdictions worldwide.**
 
 ### 4.2 What Each Node Stores
 
@@ -229,7 +315,7 @@ This works because the UTXO set *is* the pocket. The past is irrelevant.
 
 ## 5 — Quantum Security
 
-Elektron Net 2.0 does not introduce novel post-quantum primitives. Instead, it amplifies the protections already present in Bitcoin's design and accelerates them through the 60-second finality window.
+Elektron Net does not introduce novel post-quantum primitives. Instead, it amplifies the protections already present in Bitcoin's design and accelerates them through the 60-second finality window.
 
 ### 5.1 Hash-Commitment at Rest
 
@@ -286,7 +372,7 @@ If a credible quantum threat emerges, the network can soft-fork to post-quantum 
 
 ## 7 — Conclusion
 
-Elektron Net 2.0 is Bitcoin Core with two surgical modifications:
+Elektron Net is Bitcoin Core with two surgical modifications:
 
 1. **60-second blocks** — faster payments, preserved economics.
 2. **137-day pruning** — privacy by mathematics, storage bounded forever.

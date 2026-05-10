@@ -19,7 +19,9 @@ unsigned int GetNextWorkRequired(const CBlockIndex* pindexLast, const CBlockHead
     // Only change once per difficulty adjustment interval
     if ((pindexLast->nHeight+1) % params.DifficultyAdjustmentInterval() != 0)
     {
-        if (params.fPowAllowMinDifficultyBlocks)
+        bool allowMinDifficulty = params.fPowAllowMinDifficultyBlocks ||
+            (params.MinDifficultyActivationHeight != -1 && (pindexLast->nHeight + 1) >= params.MinDifficultyActivationHeight);
+        if (allowMinDifficulty)
         {
             // Special difficulty rule for testnet:
             // If the new block's timestamp is more than 2* 10 minutes
@@ -88,7 +90,9 @@ unsigned int CalculateNextWorkRequired(const CBlockIndex* pindexLast, int64_t nF
 // or decrease beyond the permitted limits.
 bool PermittedDifficultyTransition(const Consensus::Params& params, int64_t height, uint32_t old_nbits, uint32_t new_nbits)
 {
-    if (params.fPowAllowMinDifficultyBlocks) return true;
+    bool allowMinDifficulty = params.fPowAllowMinDifficultyBlocks ||
+        (params.MinDifficultyActivationHeight != -1 && height >= params.MinDifficultyActivationHeight);
+    if (allowMinDifficulty) return true;
 
     if (height % params.DifficultyAdjustmentInterval() == 0) {
         int64_t smallest_timespan = params.nPowTargetTimespan/4;

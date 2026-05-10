@@ -4,6 +4,13 @@ Standalone CPU miner for Elektron Net.
 
 Connects to a local node via RPC, fetches block templates, mines with
 multiple threads, and submits solved blocks.
+
+Hard Fork v3.0.1 (Stoic Awakening) — Block 137035:
+- From block 137035 onward, the node may serve templates with minimum
+  difficulty (powLimit) if more than 120 seconds have elapsed since
+  the previous block.
+- No changes are required in this miner; the difficulty (bits field)
+  is read directly from the block template returned by the node.
 """
 
 import argparse
@@ -442,7 +449,7 @@ def main():
     rpc = RpcClient(args.url, args.user, args.password)
 
     print(f"Elektron Net Miner (Python)")
-    print(f"Network:   Elektron Net (60s blocks, 5 Elek reward)")
+    print(f"Network:   Elektron Net (60s blocks)")
     print(f"RPC:       {args.url}")
     print(f"Address:   {args.address}")
     print(f"Threads:   {args.threads}")

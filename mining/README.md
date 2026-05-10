@@ -195,8 +195,10 @@ The Python miner automatically detects and supports:
 ### Build
 
 ```bash
-cmake -B build -S .
-cmake --build build --config Release
+cd mining
+mkdir build && cd build
+cmake ..
+cmake --build .
 ```
 
 ### Usage
