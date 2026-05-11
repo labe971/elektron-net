@@ -271,7 +271,7 @@ inline constexpr const char* SENDTXRCNCL{"sendtxrcncl"};
 inline constexpr const char* GETUTXOSNAPSHOT{"getutxosnapshot"};
 /**
  * Elektron Net: response containing UTXO snapshot metadata.
- * The payload is: int height, uint256 blockhash, uint256 utxo_hash.
+ * The payload is: int height, uint256 blockhash, uint256 utxo_hash, uint64_t file_size.
  */
 inline constexpr const char* UTXOSNAPSHOT{"utxosnapshot"};
 /**

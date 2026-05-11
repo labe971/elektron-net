@@ -972,7 +972,8 @@ private:
     [[nodiscard]] util::Result<void> PopulateAndValidateSnapshot(
         Chainstate& snapshot_chainstate,
         AutoFile& coins_file,
-        const node::SnapshotMetadata& metadata);
+        const node::SnapshotMetadata& metadata,
+        bool verify_assumeutxo_hash = true);
 
     /**
      * If a block header hasn't already been seen, call CheckBlockHeader on it, ensure
@@ -1119,8 +1120,11 @@ public:
     //! - Wait for our headers chain to include the base block of the snapshot.
     //! - "Fast forward" the tip of the new chainstate to the base of the snapshot.
     //! - Construct the new Chainstate and add it to m_chainstates.
+    /** Elektron Net: added verify_assumeutxo_hash parameter. When false (automatic
+     *  snapshot bootstrap), the hardcoded assumeutxo hash check is skipped.
+     */
     [[nodiscard]] util::Result<CBlockIndex*> ActivateSnapshot(
-        AutoFile& coins_file, const node::SnapshotMetadata& metadata, bool in_memory);
+        AutoFile& coins_file, const node::SnapshotMetadata& metadata, bool in_memory, bool verify_assumeutxo_hash = true);
 
     //! Try to validate an assumeutxo snapshot by using a validated historical
     //! chainstate targeted at the snapshot block. When the target block is

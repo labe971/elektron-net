@@ -123,6 +123,9 @@ public:
     /** Get info about transactions currently being privately broadcast. */
     virtual std::vector<PrivateBroadcast::TxBroadcastInfo> GetPrivateBroadcastInfo() const = 0;
 
+    /** Elektron Net: trigger snapshot bootstrap request if IBD is stalled. Test-only hook. */
+    virtual void MaybeRequestSnapshot() = 0;
+
     /**
      * Abort private broadcast attempts for transactions currently being privately broadcast.
      *

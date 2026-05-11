@@ -1056,8 +1056,16 @@ private:
     /** Peers that have advertised a snapshot for a given checkpoint */
     std::map<uint256, std::set<NodeId>> m_snapshot_peers GUARDED_BY(m_snapshot_download_mutex);
 
+    /** Elektron Net: hash of the checkpoint we are currently trying to bootstrap from */
+    uint256 m_snapshot_bootstrap_target GUARDED_BY(cs_main);
+    /** Elektron Net: rate limiter for snapshot bootstrap requests */
+    NodeClock::time_point m_last_snapshot_request GUARDED_BY(cs_main);
+
     /** Return the path to an automatic snapshot file for a given checkpoint hash, if it exists. */
     std::optional<fs::path> FindSnapshotFile(const uint256& checkpoint_hash) const;
+
+    /** Elektron Net: if IBD is stalled because all peers are pruned, request a UTXO snapshot. */
+    void MaybeRequestSnapshot() override;
 
     void AddToCompactExtraTransactions(const CTransactionRef& tx) EXCLUSIVE_LOCKS_REQUIRED(g_msgproc_mutex);
 
@@ -2126,6 +2134,91 @@ std::optional<fs::path> PeerManagerImpl::FindSnapshotFile(const uint256& checkpo
     return std::nullopt;
 }
 
+void PeerManagerImpl::MaybeRequestSnapshot()
+{
+    LOCK(cs_main);
+
+    // Only during IBD
+    if (!m_chainman.IsInitialBlockDownload()) {
+        return;
+    }
+
+    // Rate limit: once every 60 seconds
+    auto now = NodeClock::now();
+    if (now - m_last_snapshot_request < std::chrono::seconds{60}) {
+        return;
+    }
+
+    const CChain& active_chain = m_chainman.ActiveChain();
+    const int tip_height = active_chain.Height();
+    if (tip_height < 0) return;
+
+    const CBlockIndex* best_header = m_chainman.m_best_header;
+    if (!best_header) return;
+
+    const int header_height = best_header->nHeight;
+    if (header_height - tip_height <= static_cast<int>(MANDATORY_PRUNE_DEPTH)) {
+        return; // normal IBD is still possible
+    }
+
+    // Compute the most recent checkpoint height that is not ahead of the
+    // best header.  A new node must bootstrap from the latest checkpoint so
+    // that it only needs to download the (at most) MANDATORY_PRUNE_DEPTH
+    // blocks that follow the snapshot.  If we used the tip_height, a node
+    // starting at height 0 would request checkpoint 197280 and then need
+    // blocks 197281+ — most of which are already pruned away.
+    int target_height = (header_height / static_cast<int>(MANDATORY_PRUNE_DEPTH))
+                        * static_cast<int>(MANDATORY_PRUNE_DEPTH);
+    if (target_height == 0) return;
+
+    const CBlockIndex* checkpoint = best_header->GetAncestor(target_height);
+    if (!checkpoint) return;
+
+    const uint256 checkpoint_hash = checkpoint->GetBlockHash();
+
+    // If we already have this snapshot file locally or are already downloading it, nothing to request.
+    {
+        LOCK(m_snapshot_download_mutex);
+        if (m_snapshot_downloads.count(checkpoint_hash)) {
+            return;
+        }
+    }
+    if (FindSnapshotFile(checkpoint_hash).has_value()) {
+        return;
+    }
+
+    // Elektron Net: if we already have a snapshot-based chainstate, check whether
+    // it is still recent enough.  If the snapshot base is older than the latest
+    // checkpoint, the node has fallen behind the pruned network and needs a newer
+    // snapshot — exactly what a fresh node would do.  We request the snapshot
+    // anyway; the activation logic in init.cpp will replace the old one.
+    if (Chainstate* current_cs = &m_chainman.CurrentChainstate();
+        current_cs->m_from_snapshot_blockhash) {
+        const CBlockIndex* existing_base = current_cs->SnapshotBase();
+        int existing_height = existing_base ? existing_base->nHeight : 0;
+        if (existing_height >= target_height) {
+            // Existing snapshot is already the latest (or newer). Nothing to do.
+            return;
+        }
+        LogInfo("[snapshot] Existing snapshot at %d is behind latest checkpoint %d. "
+                "Requesting newer snapshot from peers.\n",
+                existing_height, target_height);
+    }
+
+    // Broadcast GETUTXOSNAPSHOT to all connected peers
+    LogInfo("[snapshot] Bootstrap needed: tip=%d, best_header=%d, requesting snapshot for checkpoint %d (%s)\n",
+            tip_height, header_height, target_height, checkpoint_hash.ToString());
+
+    m_connman.ForEachNode([&](CNode* pnode) {
+        if (pnode) {
+            MakeAndPushMessage(*pnode, NetMsgType::GETUTXOSNAPSHOT, checkpoint_hash);
+        }
+    });
+
+    m_last_snapshot_request = now;
+    m_snapshot_bootstrap_target = checkpoint_hash;
+}
+
 void PeerManagerImpl::StartScheduledTasks(CScheduler& scheduler)
 {
     // Stale tip checking and peer eviction are on two different timers, but we
@@ -2142,6 +2235,9 @@ void PeerManagerImpl::StartScheduledTasks(CScheduler& scheduler)
     if (m_opts.private_broadcast) {
         scheduler.scheduleFromNow([&] { ReattemptPrivateBroadcast(scheduler); }, 0min);
     }
+
+    // Elektron Net: periodically check if we need to bootstrap from a snapshot
+    scheduler.scheduleEvery([this] { this->MaybeRequestSnapshot(); }, std::chrono::seconds{60});
 }
 
 void PeerManagerImpl::ActiveTipChange(const CBlockIndex& new_tip, bool is_ibd)
@@ -5120,23 +5216,35 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
         const CBlockIndex* checkpoint_index = m_chainman.m_blockman.LookupBlockIndex(checkpoint_hash);
         if (checkpoint_index && checkpoint_index->nHeight > 0 &&
             checkpoint_index->nHeight % MANDATORY_PRUNE_DEPTH == 0) {
-            auto stats = kernel::ComputeUTXOStats(
-                kernel::CoinStatsHashType::HASH_SERIALIZED,
-                &m_chainman.ActiveChainstate().CoinsDB(),
-                m_chainman.m_blockman);
-            if (stats) {
-                // Only advertise if we actually have the snapshot file
-                auto maybe_path = FindSnapshotFile(checkpoint_hash);
-                if (maybe_path) {
-                    uint64_t file_size = 0;
+            // Only advertise if we actually have the snapshot file
+            auto maybe_path = FindSnapshotFile(checkpoint_hash);
+            if (maybe_path) {
+                uint64_t file_size = 0;
+                try {
+                    file_size = fs::file_size(*maybe_path);
+                } catch (const fs::filesystem_error&) {}
+
+                // Read the pre-computed UTXO hash from the sidecar file.
+                // Computing from the active chainstate is wrong because the
+                // peer may have advanced far past the checkpoint.
+                uint256 utxo_hash;
+                const fs::path hash_path = *maybe_path + ".hash";
+                FILE* hash_file{fsbridge::fopen(hash_path, "rb")};
+                if (hash_file) {
+                    AutoFile hash_afile{hash_file};
                     try {
-                        file_size = fs::file_size(*maybe_path);
-                    } catch (const fs::filesystem_error&) {}
-                    MakeAndPushMessage(pfrom, NetMsgType::UTXOSNAPSHOT,
-                                       checkpoint_index->nHeight, checkpoint_hash, stats->hashSerialized, file_size);
-                    LogDebug(BCLog::NET, "Sent utxosnapshot for height %d (size=%d) to peer=%d\n",
-                             checkpoint_index->nHeight, file_size, pfrom.GetId());
+                        hash_afile >> utxo_hash;
+                    } catch (...) {
+                        utxo_hash.SetNull();
+                    }
+                } else {
+                    utxo_hash.SetNull();
                 }
+
+                MakeAndPushMessage(pfrom, NetMsgType::UTXOSNAPSHOT,
+                                   checkpoint_index->nHeight, checkpoint_hash, utxo_hash, file_size);
+                LogDebug(BCLog::NET, "Sent utxosnapshot for height %d (size=%d) to peer=%d\n",
+                         checkpoint_index->nHeight, file_size, pfrom.GetId());
             }
         }
         return;
@@ -5167,9 +5275,13 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
                     dl.file_size = file_size;
                     dl.final_path = final_path;
                     dl.temp_path = final_path + ".download";
-                    // Create empty temp file
-                    FILE* f{fsbridge::fopen(dl.temp_path, "wb")};
-                    if (f) fclose(f);
+                    // Create empty temp file only if it doesn't already exist.
+                    // If the node restarted during a previous download, we must
+                    // not truncate the partial file or progress is lost.
+                    if (!fs::exists(dl.temp_path)) {
+                        FILE* f{fsbridge::fopen(dl.temp_path, "wb")};
+                        if (f) fclose(f);
+                    }
                     m_snapshot_downloads[checkpoint_hash] = std::move(dl);
                     LogInfo("[snapshot] Initialized download for checkpoint %d (%s)\n",
                             checkpoint_height, checkpoint_hash.ToString());
@@ -5226,7 +5338,8 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
                 it->second.last_request_time.erase(pfrom.GetId());
             }
             if (it != m_snapshot_downloads.end() && !it->second.completed &&
-                offset < it->second.file_size && !data.empty()) {
+                offset < it->second.file_size && !data.empty() &&
+                offset + data.size() <= it->second.file_size) {
                 FILE* file{fsbridge::fopen(it->second.temp_path, "r+b")};
                 if (file) {
                     AutoFile afile{file};
@@ -6415,7 +6528,19 @@ bool PeerManagerImpl::SendMessages(CNode& node)
         // Elektron Net: for small chains (< MIN_BLOCKS_TO_KEEP), allow downloading blocks from limited peers too,
         // because every peer that has the headers also has all blocks when the chain is small.
         bool allow_limited_download = m_chainman.m_best_header && m_chainman.m_best_header->nHeight < static_cast<int>(MIN_BLOCKS_TO_KEEP);
-        if (CanServeBlocks(peer) && ((sync_blocks_and_headers_from_peer && (!IsLimitedPeer(peer) || allow_limited_download)) || !m_chainman.IsInitialBlockDownload()) && state.vBlocksInFlight.size() < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
+
+        // Elektron Net: if we are downloading a snapshot for bootstrap, do NOT
+        // request historical blocks from peers. Those blocks are pruned away
+        // and the request would stall forever.  Keep syncing headers, though.
+        bool snapshot_download_active = [&]() EXCLUSIVE_LOCKS_REQUIRED(m_snapshot_download_mutex) {
+            LOCK(m_snapshot_download_mutex);
+            for (const auto& [hash, dl] : m_snapshot_downloads) {
+                if (!dl.completed) return true;
+            }
+            return false;
+        }();
+
+        if (!snapshot_download_active && CanServeBlocks(peer) && ((sync_blocks_and_headers_from_peer && (!IsLimitedPeer(peer) || allow_limited_download)) || !m_chainman.IsInitialBlockDownload()) && state.vBlocksInFlight.size() < MAX_BLOCKS_IN_TRANSIT_PER_PEER) {
             std::vector<const CBlockIndex*> vToDownload;
             NodeId staller = -1;
             auto get_inflight_budget = [&state]() {

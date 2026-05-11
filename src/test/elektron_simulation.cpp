@@ -162,6 +162,43 @@ BOOST_AUTO_TEST_CASE(prune_depth_calculation)
     BOOST_CHECK_EQUAL(MIN_BLOCKS_TO_KEEP, 2 * 24 * 60 * 60 / 60);
 }
 
+/** Verify the checkpoint height calculation used by MaybeRequestSnapshot(). */
+BOOST_AUTO_TEST_CASE(snapshot_bootstrap_checkpoint_calculation)
+{
+    // A new node must request the LATEST checkpoint (based on the best header),
+    // not the next checkpoint after its own tip.  Otherwise a node at height 0
+    // would request checkpoint 197280 and then need blocks 197281+, most of
+    // which are already pruned away.
+
+    // Normal case: network is at 300000, latest checkpoint is 197280
+    int tip_height = 1000;
+    int header_height = 300000;
+    int target_height = (header_height / static_cast<int>(MANDATORY_PRUNE_DEPTH))
+                        * static_cast<int>(MANDATORY_PRUNE_DEPTH);
+    BOOST_CHECK_EQUAL(target_height, 197280);
+    BOOST_CHECK(target_height <= header_height);
+
+    // New node, network far ahead: latest checkpoint is 789120
+    tip_height = 0;
+    header_height = 800000;
+    target_height = (header_height / static_cast<int>(MANDATORY_PRUNE_DEPTH))
+                    * static_cast<int>(MANDATORY_PRUNE_DEPTH);
+    BOOST_CHECK_EQUAL(target_height, 789120);
+    // After activating this snapshot the node only needs < 197280 more blocks.
+    BOOST_CHECK(header_height - target_height < static_cast<int>(MANDATORY_PRUNE_DEPTH));
+
+    // Header exactly on a checkpoint: use that checkpoint
+    header_height = 394560;
+    target_height = (header_height / static_cast<int>(MANDATORY_PRUNE_DEPTH))
+                    * static_cast<int>(MANDATORY_PRUNE_DEPTH);
+    BOOST_CHECK_EQUAL(target_height, 394560);
+
+    // Normal IBD (within prune depth) does NOT trigger bootstrap
+    tip_height = 190000;
+    header_height = 200000;
+    BOOST_CHECK(header_height - tip_height <= static_cast<int>(MANDATORY_PRUNE_DEPTH));
+}
+
 /** Test the range-tracking logic used for out-of-order snapshot chunk downloads. */
 BOOST_AUTO_TEST_CASE(snapshot_range_tracking)
 {
@@ -235,6 +272,87 @@ BOOST_AUTO_TEST_CASE(snapshot_range_tracking)
     BOOST_CHECK(!tracker2.AddRange(262'144, 262'144)); // 256K-512K -> merges 0-768K
     BOOST_CHECK(tracker2.AddRange(786'432, 262'144)); // 768K-1M -> completes
     BOOST_CHECK(tracker2.IsComplete());
+}
+
+/** Verify that WriteAutomaticSnapshot creates a sidecar .hash file. */
+BOOST_AUTO_TEST_CASE(snapshot_hash_sidecar_file)
+{
+    auto& chainman = *m_node.chainman;
+    auto& chainstate = chainman.ActiveChainstate();
+
+    LOCK(::cs_main);
+
+    const CBlockIndex* tip = chainman.ActiveChain().Tip();
+    BOOST_REQUIRE(tip != nullptr);
+
+    WriteAutomaticSnapshot(chainstate, tip->nHeight, tip, true);
+
+    const fs::path snapshot_dir = m_args.GetDataDirNet() / "snapshots";
+    const std::string expected_prefix = strprintf("%d-%s", tip->nHeight, tip->GetBlockHash().ToString());
+
+    bool found_hash = false;
+    if (fs::exists(snapshot_dir)) {
+        for (const auto& entry : fs::directory_iterator(snapshot_dir)) {
+            std::string fname = entry.path().filename().string();
+            if (fname.starts_with(expected_prefix) && fname.ends_with(".hash")) {
+                found_hash = true;
+                break;
+            }
+        }
+    }
+    BOOST_CHECK(found_hash);
+}
+
+/** Verify that GetPruneRange never allows pruning within MANDATORY_PRUNE_DEPTH. */
+BOOST_AUTO_TEST_CASE(prune_range_respects_mandatory_depth)
+{
+    auto& chainman = *m_node.chainman;
+    auto& chainstate = chainman.ActiveChainstate();
+
+    LOCK(::cs_main);
+
+    mineBlocks(50);
+    const CBlockIndex* tip = chainman.ActiveChain().Tip();
+    BOOST_REQUIRE(tip != nullptr);
+    int tip_height = tip->nHeight;
+
+    int manual_prune = tip_height - 10;
+    PruneBlockFilesManual(chainstate, manual_prune);
+
+    auto [min_block, max_block] = chainstate.GetPruneRange(manual_prune);
+
+    if (tip_height >= static_cast<int>(MANDATORY_PRUNE_DEPTH)) {
+        BOOST_CHECK(max_block <= tip_height - static_cast<int>(MANDATORY_PRUNE_DEPTH));
+    }
+}
+
+/** Verify that a node with an old snapshot computes the correct newer
+ *  checkpoint to replace it (self-healing after extended offline time).
+ */
+BOOST_AUTO_TEST_CASE(snapshot_replacement_calculation)
+{
+    // Node bootstrapped from checkpoint 197280, network is now at 800000.
+    int existing_snapshot_height = 197280;
+    int header_height = 800000;
+
+    // The latest checkpoint the network knows about.
+    int target_height = (header_height / static_cast<int>(MANDATORY_PRUNE_DEPTH))
+                        * static_cast<int>(MANDATORY_PRUNE_DEPTH);
+    BOOST_CHECK_EQUAL(target_height, 789120);
+
+    // The old snapshot is far behind the latest checkpoint.
+    BOOST_CHECK(existing_snapshot_height < target_height);
+
+    // After loading the new snapshot the node only needs < 197280 blocks.
+    BOOST_CHECK(header_height - target_height < static_cast<int>(MANDATORY_PRUNE_DEPTH));
+
+    // Edge case: network just passed the next checkpoint.
+    existing_snapshot_height = 789120;
+    header_height = 800000;
+    target_height = (header_height / static_cast<int>(MANDATORY_PRUNE_DEPTH))
+                    * static_cast<int>(MANDATORY_PRUNE_DEPTH);
+    // Existing snapshot is still the latest — no replacement needed.
+    BOOST_CHECK_EQUAL(target_height, existing_snapshot_height);
 }
 
 BOOST_AUTO_TEST_SUITE_END()

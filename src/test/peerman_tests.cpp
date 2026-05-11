@@ -77,4 +77,16 @@ BOOST_AUTO_TEST_CASE(connections_desirable_service_flags)
     BOOST_CHECK(peerman->GetDesirableServiceFlags(peer_flags) == ServiceFlags(NODE_NETWORK | NODE_WITNESS));
 }
 
+/** Elektron Net: verify MaybeRequestSnapshot is callable and does not crash
+ *  when there are no peers or the node is not far behind.
+ */
+BOOST_AUTO_TEST_CASE(snapshot_bootstrap_request_basic)
+{
+    std::unique_ptr<PeerManager> peerman = PeerManager::make(*m_node.connman, *m_node.addrman, nullptr, *m_node.chainman, *m_node.mempool, *m_node.warnings, {});
+
+    // With no peers and tip close to best header, MaybeRequestSnapshot must
+    // return silently without crashing.
+    BOOST_CHECK_NO_THROW(peerman->MaybeRequestSnapshot());
+}
+
 BOOST_AUTO_TEST_SUITE_END()

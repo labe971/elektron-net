@@ -2459,6 +2459,22 @@ void WriteAutomaticSnapshot(Chainstate& chainstate, int nHeight, const CBlockInd
         return;
     }
 
+    // Write the UTXO hash to a sidecar file so peers can serve it without
+    // recomputing the hash from the current (possibly advanced) tip.
+    try {
+        const fs::path hash_path = snapshot_path + ".hash";
+        FILE* hash_file{fsbridge::fopen(hash_path, "wb")};
+        if (hash_file) {
+            AutoFile hash_afile{hash_file};
+            hash_afile << maybe_stats->hashSerialized;
+            if (hash_afile.fclose() != 0) {
+                LogWarning("[snapshot] Error closing snapshot hash file %s\n", fs::PathToString(hash_path));
+            }
+        }
+    } catch (const std::exception& e) {
+        LogWarning("[snapshot] Failed to write snapshot hash file: %s\n", e.what());
+    }
+
     LogInfo("[snapshot] Automatic UTXO snapshot at height %d written successfully: %s (coins=%d, hash=%s)\n",
             nHeight, fs::PathToString(snapshot_path), written_coins_count, maybe_stats->hashSerialized.ToString());
 }
@@ -5764,7 +5780,8 @@ Chainstate& ChainstateManager::InitializeChainstate(CTxMemPool* mempool)
 util::Result<CBlockIndex*> ChainstateManager::ActivateSnapshot(
         AutoFile& coins_file,
         const SnapshotMetadata& metadata,
-        bool in_memory)
+        bool in_memory,
+        bool verify_assumeutxo_hash)
 {
     uint256 base_blockhash = metadata.m_base_blockhash;
 
@@ -5773,10 +5790,31 @@ util::Result<CBlockIndex*> ChainstateManager::ActivateSnapshot(
     {
         LOCK(::cs_main);
 
+        // Elektron Net: automatic snapshots (verify_assumeutxo_hash=false) may replace
+        // an existing snapshot chainstate.  This happens when a node that bootstrapped
+        // from an old snapshot falls too far behind the pruned network and needs a
+        // newer snapshot to catch up.  The old snapshot data is just as obsolete as
+        // the pruned blocks it replaced.
         if (this->CurrentChainstate().m_from_snapshot_blockhash) {
-            return util::Error{Untranslated("Can't activate a snapshot-based chainstate more than once")};
+            if (!verify_assumeutxo_hash) {
+                LogInfo("[snapshot] Replacing existing snapshot chainstate with newer automatic snapshot.\n");
+                Chainstate& old_cs = CurrentChainstate();
+                old_cs.ResetCoinsViews();
+                if (!DeleteChainstate(old_cs)) {
+                    return util::Error{Untranslated("Failed to remove old snapshot chainstate before activating new snapshot.")};
+                }
+                // Also clear the target on the IBD chainstate so it doesn't try to
+                // background-validate the now-deleted old snapshot.
+                for (auto& cs : m_chainstates) {
+                    if (cs && cs->m_target_blockhash) {
+                        cs->SetTargetBlock(nullptr);
+                    }
+                }
+            } else {
+                return util::Error{Untranslated("Can't activate a snapshot-based chainstate more than once")};
+            }
         }
-        if (!GetParams().AssumeutxoForBlockhash(base_blockhash).has_value()) {
+        if (verify_assumeutxo_hash && !GetParams().AssumeutxoForBlockhash(base_blockhash).has_value()) {
             auto available_heights = GetParams().GetAvailableSnapshotHeights();
             std::string heights_formatted = util::Join(available_heights, ", ", [&](const auto& i) { return util::ToString(i); });
             return util::Error{Untranslated(strprintf("assumeutxo block hash in snapshot metadata not recognized (hash: %s). The following snapshot heights are available: %s",
@@ -5869,7 +5907,7 @@ util::Result<CBlockIndex*> ChainstateManager::ActivateSnapshot(
         return util::Error{std::move(reason)};
     };
 
-    if (auto res{this->PopulateAndValidateSnapshot(*snapshot_chainstate, coins_file, metadata)}; !res) {
+    if (auto res{this->PopulateAndValidateSnapshot(*snapshot_chainstate, coins_file, metadata, verify_assumeutxo_hash)}; !res) {
         LOCK(::cs_main);
         return cleanup_bad_snapshot(Untranslated(strprintf("Population failed: %s", util::ErrorString(res).original)));
     }
@@ -5930,7 +5968,8 @@ static void SnapshotUTXOHashBreakpoint(const util::SignalInterrupt& interrupt)
 util::Result<void> ChainstateManager::PopulateAndValidateSnapshot(
     Chainstate& snapshot_chainstate,
     AutoFile& coins_file,
-    const SnapshotMetadata& metadata)
+    const SnapshotMetadata& metadata,
+    bool verify_assumeutxo_hash)
 {
     // It's okay to release cs_main before we're done using `coins_cache` because we know
     // that nothing else will be referencing the newly created snapshot_chainstate yet.
@@ -5948,14 +5987,6 @@ util::Result<void> ChainstateManager::PopulateAndValidateSnapshot(
     }
 
     int base_height = snapshot_start_block->nHeight;
-    const auto& maybe_au_data = GetParams().AssumeutxoForHeight(base_height);
-
-    if (!maybe_au_data) {
-        return util::Error{Untranslated(strprintf("Assumeutxo height in snapshot metadata not recognized "
-                  "(%d) - refusing to load snapshot", base_height))};
-    }
-
-    const AssumeutxoData& au_data = *maybe_au_data;
 
     // This work comparison is a duplicate check with the one performed later in
     // ActivateSnapshot(), but is done so that we avoid doing the long work of staging
@@ -5963,6 +5994,15 @@ util::Result<void> ChainstateManager::PopulateAndValidateSnapshot(
     if (WITH_LOCK(::cs_main, return !CBlockIndexWorkComparator()(ActiveTip(), snapshot_start_block))) {
         return util::Error{Untranslated("Work does not exceed active chainstate")};
     }
+
+    const auto& maybe_au_data = GetParams().AssumeutxoForHeight(base_height);
+
+    if (verify_assumeutxo_hash && !maybe_au_data) {
+        return util::Error{Untranslated(strprintf("Assumeutxo height in snapshot metadata not recognized "
+                  "(%d) - refusing to load snapshot", base_height))};
+    }
+
+    const AssumeutxoData* au_data = maybe_au_data ? &*maybe_au_data : nullptr;
 
     const uint64_t coins_count = metadata.m_coins_count;
     uint64_t coins_left = metadata.m_coins_count;
@@ -6085,9 +6125,9 @@ util::Result<void> ChainstateManager::PopulateAndValidateSnapshot(
     }
 
     // Assert that the deserialized chainstate contents match the expected assumeutxo value.
-    if (AssumeutxoHash{maybe_stats->hashSerialized} != au_data.hash_serialized) {
+    if (verify_assumeutxo_hash && au_data && AssumeutxoHash{maybe_stats->hashSerialized} != au_data->hash_serialized) {
         return util::Error{Untranslated(strprintf("Bad snapshot content hash: expected %s, got %s",
-            au_data.hash_serialized.ToString(), maybe_stats->hashSerialized.ToString()))};
+            au_data->hash_serialized.ToString(), maybe_stats->hashSerialized.ToString()))};
     }
 
     snapshot_chainstate.m_chain.SetTip(*snapshot_start_block);
@@ -6122,7 +6162,9 @@ util::Result<void> ChainstateManager::PopulateAndValidateSnapshot(
 
     assert(index);
     assert(index == snapshot_start_block);
-    index->m_chain_tx_count = au_data.m_chain_tx_count;
+    if (au_data) {
+        index->m_chain_tx_count = au_data->m_chain_tx_count;
+    }
 
     LogInfo("[snapshot] validated snapshot (%.2f MB)",
         coins_cache.DynamicMemoryUsage() / (1000 * 1000));

@@ -193,6 +193,23 @@ ChainstateLoadResult LoadChainstate(ChainstateManager& chainman, const CacheSize
         return {init_status, init_error};
     }
 
+    // Elektron Net: automatic snapshots have no hardcoded assumeutxo data in
+    // chainparams. Background validation would stall forever because historical
+    // blocks older than the snapshot are pruned and unavailable on all peers.
+    // Clear the target block on any chainstate that is trying to validate the
+    // snapshot so that no background work is scheduled.
+    if (assumeutxo_cs) {
+        const CBlockIndex* base = assumeutxo_cs->SnapshotBase();
+        if (base && !chainman.GetParams().AssumeutxoForHeight(base->nHeight).has_value()) {
+            for (auto& cs : chainman.m_chainstates) {
+                if (cs && cs->m_target_blockhash) {
+                    cs->SetTargetBlock(nullptr);
+                    LogInfo("[snapshot] Disabled background validation for automatic snapshot on restart.\n");
+                }
+            }
+        }
+    }
+
     // If a snapshot chainstate was fully validated by a background chainstate during
     // the last run, detect it here and clean up the now-unneeded background
     // chainstate.

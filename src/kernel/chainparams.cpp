@@ -117,7 +117,7 @@ public:
         pchMessageStart[2] = 0xb4;
         pchMessageStart[3] = 0xd9;
         nDefaultPort = 8333;
-        nPruneAfterHeight = 100000;
+        nPruneAfterHeight = 394560; // 2 * MANDATORY_PRUNE_DEPTH: first prune at 274 days, keep last 137 days
         m_assumed_blockchain_size = 856;
         m_assumed_chain_state_size = 14;
 
