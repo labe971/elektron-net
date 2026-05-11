@@ -3721,7 +3721,10 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
             return;
         }
 
-        if (nVersion < MIN_PEER_PROTO_VERSION) {
+        const bool post_fork = m_chainparams.GetConsensus().MinDifficultyActivationHeight != -1 &&
+                               m_best_height >= m_chainparams.GetConsensus().MinDifficultyActivationHeight;
+        const int min_peer_proto_version = post_fork ? MIN_PEER_PROTO_VERSION_POST_FORK : MIN_PEER_PROTO_VERSION;
+        if (nVersion < min_peer_proto_version) {
             // disconnect from peers older than this proto version
             LogDebug(BCLog::NET, "peer using obsolete version %i, %s", nVersion, pfrom.DisconnectMsg());
             pfrom.fDisconnect = true;
