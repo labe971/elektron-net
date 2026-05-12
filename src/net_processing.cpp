@@ -1007,6 +1007,10 @@ private:
         fs::path final_path;
         bool completed{false};
         std::map<NodeId, std::chrono::steady_clock::time_point> last_request_time;
+        /** Elektron Net: time of the last received data chunk (for stall detection). */
+        std::chrono::steady_clock::time_point last_progress_time;
+        /** Elektron Net: expected UTXO hash from the advertising peer. */
+        uint256 utxo_hash;
 
         /** Insert a received range and merge overlapping/adjacent ranges.
          *  Returns true if the entire file [0, file_size) is covered. */
@@ -2149,6 +2153,23 @@ void PeerManagerImpl::MaybeRequestSnapshot()
         return;
     }
 
+    // Elektron Net: discard stalled snapshot downloads (>30 min no progress) so we can retry.
+    {
+        LOCK(m_snapshot_download_mutex);
+        auto now_steady = std::chrono::steady_clock::now();
+        for (auto it = m_snapshot_downloads.begin(); it != m_snapshot_downloads.end(); ) {
+            if (it->second.completed) { ++it; continue; }
+            if (now_steady - it->second.last_progress_time > std::chrono::minutes{30}) {
+                LogWarning("[snapshot] Download for %s stalled (>30 min no progress), discarding and retrying.\n",
+                           it->first.ToString());
+                try { fs::remove(it->second.temp_path); } catch (const fs::filesystem_error&) {}
+                it = m_snapshot_downloads.erase(it);
+                continue;
+            }
+            ++it;
+        }
+    }
+
     const CChain& active_chain = m_chainman.ActiveChain();
     const int tip_height = active_chain.Height();
     if (tip_height < 0) return;
@@ -2205,15 +2226,25 @@ void PeerManagerImpl::MaybeRequestSnapshot()
                 existing_height, target_height);
     }
 
-    // Broadcast GETUTXOSNAPSHOT to all connected peers
-    LogInfo("[snapshot] Bootstrap needed: tip=%d, best_header=%d, requesting snapshot for checkpoint %d (%s)\n",
-            tip_height, header_height, target_height, checkpoint_hash.ToString());
-
+    // Broadcast GETUTXOSNAPSHOT to peers that advertise NODE_SNAPSHOT.
+    // Fallback to all outbound peers if no snapshot-capable peers are connected.
+    bool sent_to_snapshot_peer = false;
     m_connman.ForEachNode([&](CNode* pnode) {
-        if (pnode) {
+        if (!pnode) return;
+        auto peerRef = GetPeerRef(pnode->GetId());
+        if (peerRef && (peerRef->m_their_services & NODE_SNAPSHOT)) {
             MakeAndPushMessage(*pnode, NetMsgType::GETUTXOSNAPSHOT, checkpoint_hash);
+            sent_to_snapshot_peer = true;
         }
     });
+    if (!sent_to_snapshot_peer) {
+        LogInfo("[snapshot] No NODE_SNAPSHOT peers found, broadcasting GETUTXOSNAPSHOT to all outbound peers.\n");
+        m_connman.ForEachNode([&](CNode* pnode) {
+            if (pnode && !pnode->IsInboundConn()) {
+                MakeAndPushMessage(*pnode, NetMsgType::GETUTXOSNAPSHOT, checkpoint_hash);
+            }
+        });
+    }
 
     m_last_snapshot_request = now;
     m_snapshot_bootstrap_target = checkpoint_hash;
@@ -5241,6 +5272,15 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
                     utxo_hash.SetNull();
                 }
 
+                // Elektron Net: do not advertise a snapshot if we cannot provide
+                // its UTXO hash.  A requesting node needs the hash to validate the
+                // snapshot against the on-chain checkpoint before activation.
+                if (utxo_hash.IsNull()) {
+                    LogDebug(BCLog::NET, "Ignoring getutxosnapshot for %s from peer=%d: missing .hash sidecar\n",
+                             checkpoint_hash.ToString(), pfrom.GetId());
+                    return;
+                }
+
                 MakeAndPushMessage(pfrom, NetMsgType::UTXOSNAPSHOT,
                                    checkpoint_index->nHeight, checkpoint_hash, utxo_hash, file_size);
                 LogDebug(BCLog::NET, "Sent utxosnapshot for height %d (size=%d) to peer=%d\n",
@@ -5275,6 +5315,23 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
                     dl.file_size = file_size;
                     dl.final_path = final_path;
                     dl.temp_path = final_path + ".download";
+                    dl.last_progress_time = std::chrono::steady_clock::now();
+                    dl.utxo_hash = utxo_hash;
+                    // Persist the advertised UTXO hash so it survives restarts
+                    // and can be validated against the on-chain checkpoint later.
+                    try {
+                        const fs::path hash_path = final_path + ".hash";
+                        FILE* hf{fsbridge::fopen(hash_path, "wb")};
+                        if (hf) {
+                            AutoFile haf{hf};
+                            haf << utxo_hash;
+                            if (haf.fclose() != 0) {
+                                LogWarning("[snapshot] Failed to close sidecar hash file %s\n", fs::PathToString(hash_path));
+                            }
+                        }
+                    } catch (const std::exception& e) {
+                        LogWarning("[snapshot] Failed to write sidecar hash file: %s\n", e.what());
+                    }
                     // Create empty temp file only if it doesn't already exist.
                     // If the node restarted during a previous download, we must
                     // not truncate the partial file or progress is lost.
@@ -5345,6 +5402,7 @@ void PeerManagerImpl::ProcessMessage(Peer& peer, CNode& pfrom, const std::string
                     AutoFile afile{file};
                     afile.seek(offset, SEEK_SET);
                     afile.write(std::span{reinterpret_cast<const std::byte*>(data.data()), data.size()});
+                    it->second.last_progress_time = std::chrono::steady_clock::now();
                     if (it->second.AddRange(offset, data.size())) {
                         it->second.completed = true;
                         try {

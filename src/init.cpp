@@ -72,6 +72,9 @@
 #include <rpc/server.h>
 #include <rpc/util.h>
 #include <scheduler.h>
+#include <primitives/block.h>
+#include <cstring>
+#include <script/script.h>
 #include <script/sigcache.h>
 #include <streams.h>
 #include <sync.h>
@@ -1426,6 +1429,30 @@ static ChainstateLoadResult InitAndLoadChainstate(
 };
 
 /**
+ * Elektron Net: update NODE_SNAPSHOT service bit based on whether we have
+ * any completed snapshot files available to serve.
+ */
+static void UpdateLocalSnapshotServices(const fs::path& datadir)
+{
+    const fs::path snapshot_dir = datadir / "snapshots";
+    bool have_snapshot = false;
+    if (fs::exists(snapshot_dir)) {
+        for (const auto& entry : fs::directory_iterator(snapshot_dir)) {
+            const std::string fname = entry.path().filename().string();
+            if (fname.ends_with(".dat") && !fname.ends_with(".download") && !fname.ends_with(".failed")) {
+                have_snapshot = true;
+                break;
+            }
+        }
+    }
+    if (have_snapshot) {
+        g_local_services = ServiceFlags(g_local_services | NODE_SNAPSHOT);
+    } else {
+        g_local_services = ServiceFlags(g_local_services & ~NODE_SNAPSHOT);
+    }
+}
+
+/**
  * Elektron Net: check for a completed automatic snapshot download and activate it.
  * This is called periodically by the scheduler and once at startup.
  */
@@ -1444,12 +1471,25 @@ static void MaybeActivateAutomaticSnapshot(NodeContext& node)
     if (!fs::exists(snapshot_dir)) return;
 
     // Look for completed snapshot files (not .download temp files)
+    // Elektron Net: deterministically pick the newest checkpoint.
     std::optional<fs::path> snapshot_path;
+    int best_height = -1;
     for (const auto& entry : fs::directory_iterator(snapshot_dir)) {
         const std::string fname = entry.path().filename().string();
         if (fname.ends_with(".dat") && !fname.ends_with(".download")) {
-            snapshot_path = entry.path();
-            break;
+            // Expected format: <height>-<hash>.dat
+            size_t dash_pos = fname.find('-');
+            if (dash_pos != std::string::npos) {
+                try {
+                    int h = std::stoi(fname.substr(0, dash_pos));
+                    if (h > best_height) {
+                        best_height = h;
+                        snapshot_path = entry.path();
+                    }
+                } catch (const std::exception&) {
+                    // Ignore malformed filenames
+                }
+            }
         }
     }
     if (!snapshot_path) return;
@@ -1498,6 +1538,73 @@ static void MaybeActivateAutomaticSnapshot(NodeContext& node)
         }
     }
 
+    // Elektron Net: validate the downloaded snapshot hash against the on-chain checkpoint.
+    {
+        const fs::path hash_path = *snapshot_path + ".hash";
+        uint256 expected_hash;
+        bool have_expected = false;
+        FILE* hash_file{fsbridge::fopen(hash_path, "rb")};
+        if (hash_file) {
+            AutoFile hash_afile{hash_file};
+            try {
+                hash_afile >> expected_hash;
+                have_expected = true;
+            } catch (...) {}
+        }
+
+        if (have_expected) {
+            const CBlockIndex* checkpoint_index = chainman.m_blockman.LookupBlockIndex(metadata.m_base_blockhash);
+            if (checkpoint_index && checkpoint_index->nHeight > 0) {
+                CBlock checkpoint_block;
+                if (chainman.m_blockman.ReadBlock(checkpoint_block, *checkpoint_index)) {
+                    const CTransaction& coinbase = *checkpoint_block.vtx[0];
+                    bool hash_matched = false;
+                    for (const CTxOut& out : coinbase.vout) {
+                        CScript::const_iterator pc = out.scriptPubKey.begin();
+                        opcodetype opcode;
+                        std::vector<unsigned char> data;
+                        if (!out.scriptPubKey.GetOp(pc, opcode, data) || opcode != OP_RETURN) continue;
+                        if (!out.scriptPubKey.GetOp(pc, opcode, data)) continue;
+                        int cb_height = 0;
+                        if (opcode >= OP_1 && opcode <= OP_16) {
+                            cb_height = opcode - (OP_1 - 1);
+                        } else if (!data.empty()) {
+                            try { cb_height = CScriptNum(data, true, 5).getint(); } catch (...) { continue; }
+                        } else { continue; }
+                        if (!out.scriptPubKey.GetOp(pc, opcode, data)) continue;
+                        if (data.size() != 32) continue;
+                        if (cb_height == checkpoint_index->nHeight) {
+                            uint256 checkpoint_utxo_hash;
+                            std::memcpy(checkpoint_utxo_hash.begin(), data.data(), 32);
+                            if (checkpoint_utxo_hash == expected_hash) {
+                                hash_matched = true;
+                            }
+                            break;
+                        }
+                    }
+
+                    if (!hash_matched) {
+                        LogWarning("[snapshot] Snapshot hash does NOT match on-chain checkpoint for %s. Removing corrupted snapshot.\n",
+                                   metadata.m_base_blockhash.ToString());
+                        try {
+                            fs::remove(*snapshot_path);
+                            fs::remove(hash_path);
+                        } catch (const fs::filesystem_error&) {}
+                        return;
+                    }
+                    LogInfo("[snapshot] Snapshot hash verified against on-chain checkpoint at height %d.\n",
+                            checkpoint_index->nHeight);
+                } else {
+                    LogWarning("[snapshot] Unable to read checkpoint block %s from disk for validation. Proceeding without hash check.\n",
+                               metadata.m_base_blockhash.ToString());
+                }
+            }
+        } else {
+            LogWarning("[snapshot] No .hash sidecar found for %s. Proceeding without hash validation.\n",
+                       fs::PathToString(*snapshot_path));
+        }
+    }
+
     // Elektron Net: automatic snapshots skip the hardcoded assumeutxo hash check
     // because the checkpoint hash is validated on-chain and the snapshot was
     // generated by a peer we trust enough to download from.
@@ -1516,6 +1623,23 @@ static void MaybeActivateAutomaticSnapshot(NodeContext& node)
 
     LogInfo("[snapshot] Successfully activated snapshot at height %d, hash=%s\n",
             (*activation_result)->nHeight, (*activation_result)->GetBlockHash().ToString());
+
+    // Elektron Net: cleanup obsolete snapshot files from earlier checkpoints or failed attempts.
+    try {
+        const std::string activated_prefix = strprintf("%d-%s", best_height, metadata.m_base_blockhash.ToString());
+        for (const auto& entry : fs::directory_iterator(snapshot_dir)) {
+            const std::string fname = entry.path().filename().string();
+            if (!fname.starts_with(activated_prefix)) {
+                fs::remove(entry.path());
+                LogDebug(BCLog::NET, "[snapshot] Removed obsolete snapshot file: %s\n", fname);
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        LogWarning("[snapshot] Failed to cleanup obsolete snapshots: %s\n", e.what());
+    }
+
+    // Advertise that we now have a snapshot available for peers.
+    UpdateLocalSnapshotServices(chainman.m_options.datadir);
 
     // Elektron Net: disable background validation for automatic snapshots.
     // In a fully-pruned network, the historical blocks needed for background
@@ -2215,6 +2339,8 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     // Map ports with NAT-PMP
     StartMapPort(args.GetBoolArg("-natpmp", DEFAULT_NATPMP));
 
+    UpdateLocalSnapshotServices(chainman.m_options.datadir);
+
     CConnman::Options connOptions;
     connOptions.m_local_services = g_local_services;
     connOptions.m_max_automatic_connections = nMaxConnections;
@@ -2451,6 +2577,14 @@ bool AppInitMain(NodeContext& node, interfaces::BlockAndHeaderTipInfo* tip_info)
     }, SNAPSHOT_ACTIVATION_INTERVAL);
     // Also attempt activation once immediately at startup
     MaybeActivateAutomaticSnapshot(node);
+
+    // Elektron Net: periodically update NODE_SNAPSHOT service bit so active nodes
+    // that write new snapshots advertise them without requiring a restart.
+    scheduler.scheduleEvery([&node]() {
+        if (node.chainman) {
+            UpdateLocalSnapshotServices(node.chainman->m_options.datadir);
+        }
+    }, std::chrono::minutes{5});
 
 #if HAVE_SYSTEM
     StartupNotify(args);

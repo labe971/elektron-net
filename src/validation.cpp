@@ -2477,6 +2477,20 @@ void WriteAutomaticSnapshot(Chainstate& chainstate, int nHeight, const CBlockInd
 
     LogInfo("[snapshot] Automatic UTXO snapshot at height %d written successfully: %s (coins=%d, hash=%s)\n",
             nHeight, fs::PathToString(snapshot_path), written_coins_count, maybe_stats->hashSerialized.ToString());
+
+    // Elektron Net: cleanup obsolete snapshot files from earlier checkpoints.
+    try {
+        const std::string keep_prefix = strprintf("%d-%s", nHeight, pindex->GetBlockHash().ToString());
+        for (const auto& entry : fs::directory_iterator(snapshot_dir)) {
+            const std::string fname = entry.path().filename().string();
+            if (!fname.starts_with(keep_prefix)) {
+                fs::remove(entry.path());
+                LogDebug(BCLog::VALIDATION, "[snapshot] Removed obsolete snapshot file: %s\n", fname);
+            }
+        }
+    } catch (const fs::filesystem_error& e) {
+        LogWarning("[snapshot] Failed to cleanup obsolete snapshots: %s\n", e.what());
+    }
 }
 
 /** Apply the effects of this block (with given index) on the UTXO set represented by coins.
@@ -2822,7 +2836,11 @@ bool Chainstate::ConnectBlock(const CBlock& block, BlockValidationState& state, 
 
     // Elektron Net: validate UTXO checkpoint for checkpoint blocks
     if (!ValidateUTXOCheckpoint(block, pindex->nHeight, view, m_blockman, state)) {
-        return false;
+        // A checkpoint validation failure means the network consensus rules
+        // have been violated at a mandatory checkpoint.  The node must not
+        // continue on a potentially invalid fork.
+        return FatalError(m_chainman.GetNotifications(), state,
+            strprintf(_("Checkpoint validation failed at height %d. The network may be on an invalid fork or your node needs an upgrade."), pindex->nHeight));
     }
 
     if (!fJustCheck) {
