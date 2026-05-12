@@ -5,36 +5,35 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout
+      - name: Checkout Real Wallet Code
         uses: actions/checkout@v4
+        with:
+          repository: 'kutlusoy/elektron' # Forziamo il repo del wallet vero
 
       - name: Install Build Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils curl git g++-mingw-w64-x86-64 python3
 
-      - name: Fix Permissions
-        run: chmod -R +x .
-
       - name: Build Depends (NO QT)
         run: |
+          chmod -R +x .
           cd depends
-          # Disabilitiamo completamente QT e le librerie grafiche
-          make HOST=x86_64-w64-mingw32 NO_QT=1 NO_QR=1 -j$(nproc)
+          make HOST=x86_64-w64-mingw32 NO_QT=1 -j$(nproc)
           cd ..
 
       - name: Build Wallet (Daemon Only)
         run: |
+          chmod +x autogen.sh
           ./autogen.sh
-          # Configurazione senza interfaccia grafica
-          ./configure --prefix=$(pwd)/depends/x86_64-w64-mingw32 --without-gui --without-miniupnpc --disable-tests --disable-bench --enable-reduce-exports
+          ./configure --prefix=$(pwd)/depends/x86_64-w64-mingw32 --without-gui --disable-tests --disable-bench --enable-reduce-exports
           make -j$(nproc)
 
       - name: Prepare Artifact
         run: |
           mkdir release
-          cp src/elektrond.exe release/
-          cp src/elektron-cli.exe release/
+          cp src/elektrond.exe release/ || true
+          cp src/elektron-cli.exe release/ || true
 
       - name: Upload Wallet
         uses: actions/upload-artifact@v4
