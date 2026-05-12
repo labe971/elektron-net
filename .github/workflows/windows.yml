@@ -1,0 +1,42 @@
+name: Build Elektron Windows
+on: [workflow_dispatch, push]
+
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils curl git g++-mingw-w64-x86-64 python3
+
+      - name: Build Depends
+        run: |
+          cd depends
+          # Compiliamo le dipendenze base per Windows
+          make HOST=x86_64-w64-mingw32 -j$(nproc)
+          cd ..
+
+      - name: Build Wallet
+        run: |
+          ./autogen.sh
+          # Configurazione ottimizzata per il wallet QT
+          ./configure --prefix=$(pwd)/depends/x86_64-w64-mingw32 --disable-tests --disable-bench --enable-reduce-exports --with-gui=qt5
+          make -j$(nproc)
+
+      - name: Prepare Artifact
+        run: |
+          mkdir release
+          cp src/qt/elektron-qt.exe release/
+          # Se vuoi anche il demone per il mining da riga di comando
+          cp src/elektrond.exe release/
+          cp src/elektron-cli.exe release/
+
+      - name: Upload Wallet
+        uses: actions/upload-artifact@v4
+        with:
+          name: Elektron-Windows-Wallet
+          path: release/
