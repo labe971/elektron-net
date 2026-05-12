@@ -5,13 +5,11 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Download Source Code
+      - name: Clone Repository
         run: |
-          # Scarichiamo direttamente lo zip del codice master
-          curl -L https://github.com -o elektron.zip
-          unzip elektron.zip
-          # Spostiamo tutto nella cartella corrente per far funzionare i passi successivi
-          mv elektron-master/* .
+          # Cloniamo direttamente il repo core
+          git clone https://github.com .
+          git checkout master
 
       - name: Install Build Dependencies
         run: |
