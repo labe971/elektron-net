@@ -5,11 +5,13 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Checkout Real Wallet Code
-        uses: actions/checkout@v4
-        with:
-          repository: 'kutlusoy/elektron'
-          ref: 'master' # Specifichiamo master invece di main
+      - name: Download Source Code
+        run: |
+          # Scarichiamo direttamente lo zip del codice master
+          curl -L https://github.com -o elektron.zip
+          unzip elektron.zip
+          # Spostiamo tutto nella cartella corrente per far funzionare i passi successivi
+          mv elektron-master/* .
 
       - name: Install Build Dependencies
         run: |
@@ -33,8 +35,8 @@ jobs:
       - name: Prepare Artifact
         run: |
           mkdir release
-          [ -f src/elektrond.exe ] && cp src/elektrond.exe release/
-          [ -f src/elektron-cli.exe ] && cp src/elektron-cli.exe release/
+          cp src/elektrond.exe release/ || true
+          cp src/elektron-cli.exe release/ || true
 
       - name: Upload Wallet
         uses: actions/upload-artifact@v4
