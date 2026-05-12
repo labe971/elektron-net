@@ -5,10 +5,13 @@ jobs:
   build:
     runs-on: ubuntu-22.04
     steps:
-      - name: Clone Repository
+      - name: Force Clone
         run: |
-          # Cloniamo direttamente il repo core
-          git clone https://github.com .
+          rm -rf *
+          # Ricostruiamo l'URL a pezzi così non viene tagliato
+          PART1="https://github.com"
+          PART2="/kutlusoy/elektron.git"
+          git clone "$PART1$PART2" .
           git checkout master
 
       - name: Install Build Dependencies
