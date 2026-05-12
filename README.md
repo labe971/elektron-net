@@ -5,6 +5,8 @@ Elektron Net
 [![Reddit](https://img.shields.io/badge/Reddit-r/elektronnet-orange?style=for-the-badge&logo=reddit)](https://www.reddit.com/r/elektronnet/)
 [![Discord](https://img.shields.io/badge/Discord-Join%20Us-7289DA?style=for-the-badge&logo=discord)](https://discord.gg/nYsm2vEb2W)
 
+# Warning: Although we are on the mainnet, the blockchain is highly experimental and unstable and should not be used for financial purposes at this stage. It is recommended to perform a daily build before a full release. Use at your own risk!
+
 
 https://github.com/kutlusoy/elektron-net
 

@@ -1,6 +1,7 @@
 # Elektron Net — Whitepaper
 **Version 3.0.1 | Author: Ali Kutlusoy | Graz, Austria, 2026**
 
+# Warning: Although we are on the mainnet, the blockchain is highly experimental and unstable and should not be used for financial purposes at this stage. It is recommended to perform a daily build before a full release. Use at your own risk!
 ---
 
 ## Abstract
