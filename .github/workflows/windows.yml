@@ -13,27 +13,33 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y build-essential libtool autotools-dev automake pkg-config bsdmainutils curl git g++-mingw-w64-x86-64 python3
 
+      - name: Fix Permissions
+        run: |
+          # Questo risolve il problema "Permission denied"
+          chmod -R +x .
+          # Forza la rigenerazione degli script di build se necessario
+          find . -name "*.sh" -exec chmod +x {} +
+
       - name: Build Depends
         run: |
           cd depends
-          # Compiliamo le dipendenze base per Windows
+          # Usiamo NO_QT=1 solo se fallisce QT, ma proviamo prima completo
           make HOST=x86_64-w64-mingw32 -j$(nproc)
           cd ..
 
       - name: Build Wallet
         run: |
+          chmod +x autogen.sh
           ./autogen.sh
-          # Configurazione ottimizzata per il wallet QT
           ./configure --prefix=$(pwd)/depends/x86_64-w64-mingw32 --disable-tests --disable-bench --enable-reduce-exports --with-gui=qt5
           make -j$(nproc)
 
       - name: Prepare Artifact
         run: |
           mkdir release
-          cp src/qt/elektron-qt.exe release/
-          # Se vuoi anche il demone per il mining da riga di comando
-          cp src/elektrond.exe release/
-          cp src/elektron-cli.exe release/
+          [ -f src/qt/elektron-qt.exe ] && cp src/qt/elektron-qt.exe release/
+          [ -f src/elektrond.exe ] && cp src/elektrond.exe release/
+          [ -f src/elektron-cli.exe ] && cp src/elektron-cli.exe release/
 
       - name: Upload Wallet
         uses: actions/upload-artifact@v4
