@@ -8,10 +8,11 @@ jobs:
       - name: Force Clone
         run: |
           rm -rf *
-          # Ricostruiamo l'URL a pezzi così non viene tagliato
-          PART1="https://github.com"
-          PART2="/kutlusoy/elektron.git"
-          git clone "$PART1$PART2" .
+          # Ricostruiamo l'indirizzo pezzo per pezzo per evitare il taglio del link
+          S="https://github.com"
+          U="/kutlusoy"
+          R="/elektron"
+          git clone "$S$U$R" .
           git checkout master
 
       - name: Install Build Dependencies
